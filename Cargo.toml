@@ -1,0 +1,60 @@
+[package]
+name = "msig"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+license = "MIT OR Apache-2.0"
+description = "Fast, minimal-dependency CLI for Squads MultisigV4 on Solana"
+repository = "https://github.com/Solana-Multisig-Tools/msig"
+homepage = "https://github.com/Solana-Multisig-Tools/msig"
+documentation = "https://github.com/Solana-Multisig-Tools/msig/tree/main/docs"
+readme = "README.md"
+keywords = ["solana", "squads", "multisig", "cli"]
+categories = ["command-line-utilities", "cryptography::cryptocurrencies"]
+autobins = false
+
+[dependencies]
+# Arg parsing (1 dep, zero transitive)
+lexopt = "0.3"
+
+# Solana types (granular crates)
+solana-pubkey = { version = "2", features = ["serde"] }
+curve25519-dalek = { version = "4", default-features = false }
+
+# HTTP + serialization (sync, no tokio)
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+base64 = "0.22"
+bs58 = "0.5"
+
+# Security
+zeroize = "1"
+
+# Hashing (offline signing envelope)
+sha2 = "0.10"
+
+# Optional: TUI (feature-gated)
+crossterm = { version = "0.29", optional = true }
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"], optional = true }
+
+# Optional: Ledger (feature-gated)
+ledger-transport-hid = { version = "0.10", optional = true }
+ledger-apdu = { version = "0.10", optional = true }
+ed25519-dalek = "2.2.0"
+
+[features]
+default = ["ledger"]
+tui = ["dep:ratatui", "dep:crossterm"]
+ledger = ["dep:ledger-transport-hid", "dep:ledger-apdu"]
+
+[[bin]]
+name = "msig"
+path = "src/main.rs"
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+panic = "abort"
