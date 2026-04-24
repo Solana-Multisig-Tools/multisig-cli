@@ -26,8 +26,8 @@ This guide covers installing and running `msig` on a local machine for developme
 ### 1. Clone
 
 ```sh
-git clone https://github.com/Solana-Multisig-Tools/msig.git
-cd msig
+git clone https://github.com/Solana-Multisig-Tools/v4-cli.git
+cd v4-cli
 ```
 
 ### 2. Install

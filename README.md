@@ -47,8 +47,8 @@ msig/
 ### Local Install
 
 ```sh
-git clone https://github.com/Solana-Multisig-Tools/msig.git
-cd msig
+git clone https://github.com/Solana-Multisig-Tools/v4-cli.git
+cd v4-cli
 cargo install --path . --locked
 msig --version
 msig config doctor
@@ -105,13 +105,102 @@ msig --multisig <MULTISIG> multisig add-spending-limit \
   --members <MEMBER_A>,<MEMBER_B>
 ```
 
-### Templates And Raw Transactions
+### Templates
+
+Templates are static TOML files for repeatable Squads vault transaction workflows. They are meant for the middle ground between built-in commands such as `transfer sol` and fully raw transaction construction: the template author fixes the program, accounts, account flags, and instruction data layout, while the operator supplies only the inputs that should vary for that workflow.
+
+This lets a team or the community publish reusable workflows without asking this CLI to grow a custom command for every protocol action. A template can describe one instruction, multiple instructions, or a repeated instruction layout over a list of pubkeys.
+
+The template security model is intentionally narrow:
+
+- templates are explicit files passed on the command line; they are never auto-loaded
+- templates cannot execute code, call RPC, read environment variables, or include other files
+- account aliases resolve from constants, operator inputs, or the active Squads context
+- only the Squads vault context account may be marked as a signer
+- `inspect` prints the declared inputs, instruction count, and template SHA-256
+- `validate` compiles the exact instructions with real inputs without creating a proposal
+
+The normal review flow is:
 
 ```sh
 msig template inspect workflow.toml
 msig template validate workflow.toml --input recipient=<PUBKEY>
 msig template run workflow.toml --input recipient=<PUBKEY>
 ```
+
+Templates have four main parts:
+
+```toml
+id = "system.transfer"
+version = "1"
+description = "Transfer SOL from the Squads vault"
+
+[inputs.recipient]
+type = "pubkey"
+
+[inputs.lamports]
+type = "u64"
+
+[accounts.system_program]
+const = "11111111111111111111111111111111"
+
+[accounts.vault]
+context = "vault"
+
+[accounts.destination]
+input = "recipient"
+
+[[instructions]]
+program = "system_program"
+accounts = [
+  { pubkey = "vault", writable = true, signer = true },
+  { pubkey = "destination", writable = true },
+]
+data = [
+  { const_hex = "02000000" },
+  { input = "lamports", encoding = "u64_le" },
+]
+```
+
+Inputs declare what the operator must provide. Supported types are `pubkey`, `pubkey[]`, `bytes`, `string`, `u8`, `u16`, `u32`, `u64`, `i64`, and `bool`. Inputs can be passed as `--input key=value` or as direct flags such as `--recipient <PUBKEY> --lamports 1000000`.
+
+Accounts are named aliases. Each alias must come from exactly one source:
+
+- `const = "<PUBKEY>"` for fixed program IDs or fixed accounts
+- `input = "<INPUT_NAME>"` for operator-provided pubkeys
+- `context = "vault"`, `context = "multisig"`, or `context = "program_id"` for active Squads context accounts
+
+Instruction data is assembled from fixed bytes and typed input bytes. Integer inputs default to little-endian when their native type is used, and explicit encodings such as `u64_le`, `u32_be`, `bool_u8`, `pubkey`, `utf8`, and `bytes` are available. `bytes` inputs accept hex by default, `base64:<DATA>`, or `utf8:<TEXT>`.
+
+For batch workflows, `for_each` repeats an instruction over a `pubkey[]` input:
+
+```toml
+[inputs.recipients]
+type = "pubkey[]"
+
+[[instructions]]
+program = "some_program"
+for_each = "recipients"
+accounts = [
+  { pubkey = "$item", writable = true },
+]
+data = [
+  { const_hex = "07000000" },
+]
+```
+
+After `template run` creates the proposal, operators should still use the normal proposal review path:
+
+```sh
+msig proposal show <INDEX|PROPOSAL_ADDRESS> --verbose
+msig proposal simulate <INDEX|PROPOSAL_ADDRESS>
+```
+
+See [docs/templates.md](docs/templates.md) for the full template reference, raw data examples, and simulation review guidance.
+
+### Raw Transactions
+
+For one-off workflows where writing a template is not worth it, `tx create` can create an arbitrary vault transaction directly from program/account/data flags:
 
 ```sh
 msig tx create \
@@ -121,6 +210,8 @@ msig tx create \
   --account <ACCOUNT>:writable \
   --data <HEX|base64:DATA|utf8:TEXT>
 ```
+
+Use templates when a workflow will be reused or shared. Use `tx create` when the instruction is genuinely one-off. Use `--vault-message <HEX|base64:DATA|JSON_BYTES>` only for pre-compiled vault transaction messages where the bytes already came from a trusted builder.
 
 ## Configuration
 
