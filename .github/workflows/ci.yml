@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_AUDIT_VERSION: "0.22.1"
+  CARGO_DENY_VERSION: "0.19.4"
+
+jobs:
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+
+      - name: Install supply-chain audit tools
+        run: |
+          cargo install cargo-audit --version "${CARGO_AUDIT_VERSION}" --locked
+          cargo install cargo-deny --version "${CARGO_DENY_VERSION}" --locked
+
+      - name: Audit RustSec advisories
+        run: cargo audit --deny warnings
+
+      - name: Check dependency policy
+        run: cargo deny check advisories bans licenses sources
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Test default features
+        run: cargo test --locked
+
+      - name: Test all features
+        run: cargo test --locked --all-features
+
+      - name: Test no default features
+        run: cargo test --locked --no-default-features
+
+      - name: Test ledger-only feature set
+        run: cargo test --locked --no-default-features --features ledger
+
+      - name: Test tui-only feature set
+        run: cargo test --locked --no-default-features --features tui
+
+      - name: Lint
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Package check
+        run: cargo package --locked

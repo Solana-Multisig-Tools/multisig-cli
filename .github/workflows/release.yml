@@ -1,0 +1,181 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release, for example v0.1.0
+        required: true
+        type: string
+      dry_run:
+        description: Build and checksum artifacts without creating a GitHub release
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_AUDIT_VERSION: "0.22.1"
+  CARGO_DENY_VERSION: "0.19.4"
+
+jobs:
+  validate:
+    name: Validate release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      dry_run: ${{ steps.release.outputs.dry_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+            dry_run="${{ inputs.dry_run }}"
+            git checkout --detach "refs/tags/${tag}"
+          else
+            tag="${GITHUB_REF_NAME}"
+            dry_run="false"
+          fi
+
+          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release tag must look like vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+
+          test "$(git rev-list -n 1 "${tag}")" = "$(git rev-parse HEAD)"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "dry_run=${dry_run}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+
+      - name: Install supply-chain audit tools
+        run: |
+          cargo install cargo-audit --version "${CARGO_AUDIT_VERSION}" --locked
+          cargo install cargo-deny --version "${CARGO_DENY_VERSION}" --locked
+
+      - name: Audit RustSec advisories
+        run: cargo audit --deny warnings
+
+      - name: Check dependency policy
+        run: cargo deny check advisories bans licenses sources
+
+      - name: Test release code
+        run: cargo test --locked --all-features
+
+      - name: Lint release code
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Package crate
+        run: cargo package --locked
+
+      - name: Prepare crate checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp target/package/msig-[0-9]*.crate dist/
+          (
+            cd dist
+            shasum -a 256 *.crate > SHA256SUMS.crate
+          )
+
+      - name: Show dry-run crate artifact
+        if: ${{ steps.release.outputs.dry_run == 'true' }}
+        run: |
+          ls -lh dist
+          cat dist/SHA256SUMS.crate
+
+      - name: Create draft GitHub release
+        if: ${{ steps.release.outputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ steps.release.outputs.tag }}" --verify-tag --draft --title "${{ steps.release.outputs.tag }}" --generate-notes
+
+      - name: Upload crate artifact
+        if: ${{ steps.release.outputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.release.outputs.tag }}" dist/* --clobber
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-13
+            target: x86_64-apple-darwin
+          - runner: macos-14
+            target: aarch64-apple-darwin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install --target ${{ matrix.target }}
+
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+
+      - name: Build binary
+        run: cargo build --release --locked --no-default-features --features ledger --target ${{ matrix.target }}
+
+      - name: Assemble artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tag="${{ needs.validate.outputs.tag }}"
+          binary="msig-${tag}-${{ matrix.target }}"
+          cp "target/${{ matrix.target }}/release/msig" "dist/${binary}"
+          (
+            cd dist
+            shasum -a 256 "${binary}" > "${binary}.sha256"
+          )
+
+      - name: Show dry-run artifact
+        if: ${{ needs.validate.outputs.dry_run == 'true' }}
+        run: |
+          ls -lh dist
+          cat dist/*.sha256
+
+      - name: Upload release artifact
+        if: ${{ needs.validate.outputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ needs.validate.outputs.tag }}" dist/* --clobber

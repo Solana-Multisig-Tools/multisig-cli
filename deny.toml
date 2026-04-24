@@ -1,0 +1,88 @@
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+allow = [
+  "Apache-2.0",
+  "MIT",
+]
+
+# Keep MIT/Apache as the global policy. Exceptions below are current
+# transitive crates with permissive non-MIT/Apache licenses.
+[[licenses.exceptions]]
+name = "webpki-roots"
+version = "*"
+allow = ["CDLA-Permissive-2.0"]
+
+[[licenses.exceptions]]
+name = "arrayref"
+version = "*"
+allow = ["BSD-2-Clause"]
+
+[[licenses.exceptions]]
+name = "curve25519-dalek"
+version = "*"
+allow = ["BSD-3-Clause"]
+
+[[licenses.exceptions]]
+name = "ed25519-dalek"
+version = "*"
+allow = ["BSD-3-Clause"]
+
+[[licenses.exceptions]]
+name = "subtle"
+version = "*"
+allow = ["BSD-3-Clause"]
+
+[[licenses.exceptions]]
+name = "foldhash"
+version = "*"
+allow = ["Zlib"]
+
+[[licenses.exceptions]]
+name = "ring"
+version = "*"
+allow = ["Apache-2.0", "ISC"]
+
+[[licenses.exceptions]]
+name = "rustls-webpki"
+version = "*"
+allow = ["ISC"]
+
+[[licenses.exceptions]]
+name = "untrusted"
+version = "*"
+allow = ["ISC"]
+
+[[licenses.exceptions]]
+name = "unicode-ident"
+version = "*"
+allow = ["MIT", "Apache-2.0", "Unicode-3.0"]
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+highlight = "all"
+deny = []
+skip = [
+  { crate = "hashbrown@0.16.1", reason = "ratatui 0.30 currently lags toml's hashbrown version" },
+  { crate = "heck@0.4.1", reason = "ledger-apdu's snafu stack has not moved to heck 0.5" },
+  { crate = "syn@1.0.109", reason = "ledger-apdu's snafu stack still uses syn 1" },
+  { crate = "thiserror@1.0.69", reason = "ledger-transport-hid still uses thiserror 1" },
+  { crate = "thiserror-impl@1.0.69", reason = "paired with thiserror 1 from ledger-transport-hid" },
+  { crate = "windows-sys@0.52.0", reason = "ring uses windows-sys 0.52 while crossterm/rustix use newer windows-sys" },
+]
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
