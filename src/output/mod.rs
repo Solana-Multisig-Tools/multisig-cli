@@ -39,6 +39,20 @@ pub fn format_sol(lamports: u64) -> String {
     format!("{whole}.{trimmed}")
 }
 
+/// Abbreviated pubkey address format, displaying
+/// on the beginning and end of the base58-encoded string
+///
+/// Example `7nE9GvcwsqzjiaKchVRvG4F6BaLqGmZ9` -> `7nE9...GmZ9`
+pub fn abbreviate_addr(pubkey: &str) -> String {
+    if pubkey.len() <= 11 {
+        pubkey.to_string()
+    } else {
+        let first4 = &pubkey[..4];
+        let last4 = &pubkey[pubkey.len() - 4..];
+        format!("{first4}...{last4}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -51,5 +65,16 @@ mod tests {
         assert_eq!(format_sol(500_000), "0.0005");
         assert_eq!(format_sol(1_500_000_000), "1.5");
         assert_eq!(format_sol(450_000_000), "0.45");
+    }
+
+    #[test]
+    fn abbreviate_addr_formats_correctly() {
+        let addr = "7nE9GvcwsqzjiaKchVRvG4F6BaLqGmZ9";
+        assert_eq!(abbreviate_addr(addr), "7nE9...GmZ9");
+    }
+
+    #[test]
+    fn abbreviate_addr_short_passthrough() {
+        assert_eq!(abbreviate_addr("AbCd"), "AbCd");
     }
 }

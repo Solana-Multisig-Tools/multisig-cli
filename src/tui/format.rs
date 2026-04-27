@@ -1,16 +1,6 @@
+use crate::output::abbreviate_addr;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
-
-/// Format a pubkey as `first4...last4`.
-pub fn short_addr(addr: &str) -> String {
-    if addr.len() <= 11 {
-        addr.to_string()
-    } else {
-        let first = &addr[..4];
-        let last = &addr[addr.len() - 4..];
-        format!("{first}...{last}")
-    }
-}
 
 /// Build a vote progress bar: `[███░░] 2/3`
 ///
@@ -87,7 +77,7 @@ pub fn member_line<'a>(
     let perms_str = permissions.join(", ");
     vec![
         Span::styled(
-            format!("  \u{25CF} {}  ", short_addr(addr)),
+            format!("  \u{25CF} {}  ", abbreviate_addr(addr)),
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
@@ -99,17 +89,6 @@ pub fn member_line<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn short_addr_formats_correctly() {
-        let addr = "7nE9GvcwsqzjiaKchVRvG4F6BaLqGmZ9";
-        assert_eq!(short_addr(addr), "7nE9...GmZ9");
-    }
-
-    #[test]
-    fn short_addr_short_passthrough() {
-        assert_eq!(short_addr("AbCd"), "AbCd");
-    }
 
     #[test]
     fn spinner_cycles() {

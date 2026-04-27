@@ -8,6 +8,7 @@ use crate::infra::config::Config;
 use crate::infra::instruction::Instruction;
 use crate::infra::rpc::RpcProvider;
 use crate::infra::signer::Signer;
+use crate::output::abbreviate_addr;
 
 const COMPUTE_BUDGET_PROGRAM: Pubkey =
     solana_pubkey::pubkey!("ComputeBudget111111111111111111111111111111");
@@ -825,15 +826,7 @@ fn identify_program(program_id: &Pubkey) -> String {
         "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr" => "Memo".to_string(),
         "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo" => "Memo".to_string(),
         "ComputeBudget111111111111111111111111111111" => "ComputeBudget".to_string(),
-        other => short_address(other),
-    }
-}
-
-fn short_address(address: &str) -> String {
-    if address.len() <= 8 {
-        address.to_string()
-    } else {
-        format!("{}...{}", &address[..4], &address[address.len() - 4..])
+        other => abbreviate_addr(other),
     }
 }
 
