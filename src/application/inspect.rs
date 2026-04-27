@@ -12,6 +12,7 @@ use crate::infra::address_lookup_table;
 use crate::infra::instruction::AccountMeta;
 use crate::infra::pda;
 use crate::infra::rpc::RpcProvider;
+use crate::output::{abbreviate_addr, format_sol};
 
 /// Fetch full multisig info including vault balance.
 pub fn fetch_multisig_info(
@@ -571,21 +572,11 @@ fn resolve_message_account_keys(
     Ok(keys)
 }
 
-/// Format a pubkey as short form: first4..last4.
-fn short_addr(pk: &Pubkey) -> String {
-    let s = pk.to_string();
-    if s.len() > 8 {
-        format!("{}..{}", &s[..4], &s[s.len() - 4..])
-    } else {
-        s
-    }
-}
-
 /// Get a short address string from the accounts list by index, or "?" if missing.
 fn acct(accounts: &[AccountRef], idx: usize) -> String {
     accounts
         .get(idx)
-        .map(|a| short_addr(&a.address))
+        .map(|a| abbreviate_addr(&a.address.to_string()))
         .unwrap_or_else(|| "?".to_string())
 }
 
@@ -642,9 +633,9 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
             let lamports = read_u64(data, 4)?;
             let space = read_u64(data, 12)?;
             let owner = read_pubkey(data, 20)
-                .map(|p| short_addr(&p))
+                .map(|p| abbreviate_addr(&p.to_string()))
                 .unwrap_or_default();
-            let sol = crate::output::table::format_sol(lamports);
+            let sol = format_sol(lamports);
             Some(format!(
                 "CreateAccount {sol} SOL, space={space}, owner={owner}, new={}",
                 acct(accounts, 1)
@@ -653,7 +644,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
         1 => {
             // Assign: owner(Pubkey)
             let owner = read_pubkey(data, 4)
-                .map(|p| short_addr(&p))
+                .map(|p| abbreviate_addr(&p.to_string()))
                 .unwrap_or_default();
             Some(format!(
                 "Assign account={} owner={owner}",
@@ -663,7 +654,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
         2 => {
             // Transfer: lamports(u64)
             let lamports = read_u64(data, 4)?;
-            let sol = crate::output::table::format_sol(lamports);
+            let sol = format_sol(lamports);
             Some(format!("Transfer {sol} SOL \u{2192} {}", acct(accounts, 1)))
         }
         3 => {
@@ -672,7 +663,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
             if let Some((_seed, consumed)) = seed_result {
                 let lam_off = 4 + 32 + consumed;
                 let lamports = read_u64(data, lam_off).unwrap_or(0);
-                let sol = crate::output::table::format_sol(lamports);
+                let sol = crate::output::format_sol(lamports);
                 Some(format!("CreateAccountWithSeed {sol} SOL"))
             } else {
                 Some("CreateAccountWithSeed".to_string())
@@ -682,7 +673,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
         5 => {
             // WithdrawNonceAccount: lamports(u64)
             let lamports = read_u64(data, 4)?;
-            let sol = crate::output::table::format_sol(lamports);
+            let sol = crate::output::format_sol(lamports);
             Some(format!(
                 "WithdrawNonceAccount {sol} SOL to={}",
                 acct(accounts, 1)
@@ -691,14 +682,14 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
         6 => {
             // InitializeNonceAccount: authority(Pubkey)
             let auth = read_pubkey(data, 4)
-                .map(|p| short_addr(&p))
+                .map(|p| abbreviate_addr(&p.to_string()))
                 .unwrap_or_default();
             Some(format!("InitializeNonceAccount authority={auth}"))
         }
         7 => {
             // AuthorizeNonceAccount: new_authority(Pubkey)
             let auth = read_pubkey(data, 4)
-                .map(|p| short_addr(&p))
+                .map(|p| abbreviate_addr(&p.to_string()))
                 .unwrap_or_default();
             Some(format!("AuthorizeNonceAccount new_authority={auth}"))
         }
@@ -715,7 +706,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
         11 => {
             // TransferWithSeed: lamports(u64) + from_seed_len + seed + from_owner
             let lamports = read_u64(data, 4).unwrap_or(0);
-            let sol = crate::output::table::format_sol(lamports);
+            let sol = crate::output::format_sol(lamports);
             Some(format!("TransferWithSeed {sol} SOL"))
         }
         12 => Some("UpgradeNonceAccount".to_string()),
@@ -731,7 +722,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
             // InitializeMint: decimals(u8) + mint_authority(Pubkey) + freeze_authority_option
             let decimals = data.get(1).copied().unwrap_or(0);
             let auth = read_pubkey(data, 2)
-                .map(|p| short_addr(&p))
+                .map(|p| abbreviate_addr(&p.to_string()))
                 .unwrap_or_default();
             Some(format!(
                 "InitializeMint decimals={decimals}, authority={auth}"
@@ -778,8 +769,8 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
                 3 => "CloseAccount",
                 _ => "Unknown",
             };
-            let new_auth =
-                read_option_pubkey(data, 2).and_then(|(opt_pk, _)| opt_pk.map(|p| short_addr(&p)));
+            let new_auth = read_option_pubkey(data, 2)
+                .and_then(|(opt_pk, _)| opt_pk.map(|p| abbreviate_addr(&p.to_string())));
             match new_auth {
                 Some(addr) => Some(format!("SetAuthority type={type_name}, new={addr}")),
                 None => Some(format!("SetAuthority type={type_name}, new=None")),
@@ -843,7 +834,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
         16 => {
             // InitializeAccount2: owner(Pubkey)
             let owner = read_pubkey(data, 1)
-                .map(|p| short_addr(&p))
+                .map(|p| abbreviate_addr(&p.to_string()))
                 .unwrap_or_default();
             Some(format!("InitializeAccount2 owner={owner}"))
         }
@@ -851,7 +842,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
         18 => {
             // InitializeAccount3: owner(Pubkey)
             let owner = read_pubkey(data, 1)
-                .map(|p| short_addr(&p))
+                .map(|p| abbreviate_addr(&p.to_string()))
                 .unwrap_or_default();
             Some(format!("InitializeAccount3 owner={owner}"))
         }
@@ -863,7 +854,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
             // InitializeMint2: decimals(u8) + mint_authority(Pubkey) + freeze_authority_option
             let decimals = data.get(1).copied().unwrap_or(0);
             let auth = read_pubkey(data, 2)
-                .map(|p| short_addr(&p))
+                .map(|p| abbreviate_addr(&p.to_string()))
                 .unwrap_or_default();
             Some(format!(
                 "InitializeMint2 decimals={decimals}, authority={auth}"
@@ -871,8 +862,8 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
         }
         25 => {
             // InitializeMintCloseAuthority: close_authority_option(u8 + Pubkey?)
-            let close_auth =
-                read_option_pubkey(data, 1).and_then(|(opt_pk, _)| opt_pk.map(|p| short_addr(&p)));
+            let close_auth = read_option_pubkey(data, 1)
+                .and_then(|(opt_pk, _)| opt_pk.map(|p| abbreviate_addr(&p.to_string())));
             match close_auth {
                 Some(addr) => Some(format!("InitializeMintCloseAuthority authority={addr}")),
                 None => Some("InitializeMintCloseAuthority authority=None".to_string()),

@@ -4,8 +4,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use crate::output::abbreviate_addr;
 use crate::tui::app::SelectorState;
-use crate::tui::format;
 use crate::tui::theme::Theme;
 use crate::tui::widgets::input::render_input;
 
@@ -187,8 +187,8 @@ fn render_list_selector(frame: &mut Frame, area: Rect, theme: &Theme, state: &Se
                 theme.normal_style()
             };
             let display = match label {
-                Some(l) => format!(" {indicator} {l} ({})", format::short_addr(addr)),
-                None => format!(" {indicator} {}", format::short_addr(addr)),
+                Some(l) => format!(" {indicator} {l} ({})", abbreviate_addr(addr)),
+                None => format!(" {indicator} {}", abbreviate_addr(addr)),
             };
             Line::styled(display, style)
         })

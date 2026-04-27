@@ -4,6 +4,7 @@ use ratatui::widgets::{Paragraph, Row, Table, TableState};
 use ratatui::Frame;
 
 use crate::domain::proposal::{ProposalDetail, ProposalSummary};
+use crate::output::abbreviate_addr;
 use crate::tui::app::{Loadable, ProposalDetailState, ProposalsState};
 use crate::tui::format;
 use crate::tui::theme::Theme;
@@ -94,7 +95,7 @@ fn render_table(
             let abs = scroll_offset + i;
             let (status_text, _) = format::status_display(p.status.label());
             let bar = vote_bar_str(p.approved_count, p.threshold);
-            let addr = format::short_addr(&p.address.to_string());
+            let addr = abbreviate_addr(&p.address.to_string());
 
             let style = if abs == selected {
                 theme.selected_style()
@@ -216,8 +217,8 @@ fn render_detail(
 ) {
     let s = &detail.summary;
     let (status_text, _) = format::status_display(s.status.label());
-    let addr = format::short_addr(&s.address.to_string());
-    let ms = format::short_addr(&detail.multisig.to_string());
+    let addr = abbreviate_addr(&s.address.to_string());
+    let ms = abbreviate_addr(&detail.multisig.to_string());
 
     let mut lines = vec![
         kv("Status", status_text, theme),
@@ -238,7 +239,7 @@ fn render_detail(
     } else {
         for pk in &detail.approved {
             lines.push(Line::from(Span::styled(
-                format!("   \u{2713} {}", format::short_addr(&pk.to_string())),
+                format!("   \u{2713} {}", abbreviate_addr(&pk.to_string())),
                 theme.success_style(),
             )));
         }
@@ -251,7 +252,7 @@ fn render_detail(
     } else {
         for pk in &detail.rejected {
             lines.push(Line::from(Span::styled(
-                format!("   \u{2717} {}", format::short_addr(&pk.to_string())),
+                format!("   \u{2717} {}", abbreviate_addr(&pk.to_string())),
                 theme.error_style(),
             )));
         }
@@ -262,7 +263,7 @@ fn render_detail(
         lines.push(Line::from(Span::styled(" Cancelled", theme.title_style())));
         for pk in &detail.cancelled {
             lines.push(Line::from(Span::styled(
-                format!("   \u{2298} {}", format::short_addr(&pk.to_string())),
+                format!("   \u{2298} {}", abbreviate_addr(&pk.to_string())),
                 theme.warning_style(),
             )));
         }
@@ -279,7 +280,7 @@ fn render_detail(
                 Span::styled(format!("   [{i}] "), theme.dim_style()),
                 Span::styled(&ix.program_name, theme.title_style()),
                 Span::styled(
-                    format!(" {}", format::short_addr(&ix.program_id.to_string())),
+                    format!(" {}", abbreviate_addr(&ix.program_id.to_string())),
                     theme.dim_style(),
                 ),
             ]));

@@ -2,7 +2,7 @@ use super::{build_context, load_config_only, next_verb, parse_value, GlobalOpts}
 use crate::application::{config_tx, inspect, multisig};
 use crate::domain::transaction::SpendingLimitPeriod;
 use crate::error::{MsigError, OutputMode};
-use crate::output::{json, table};
+use crate::output::{format_sol, json, table};
 use solana_pubkey::Pubkey;
 
 pub fn run(globals: GlobalOpts, mut parser: lexopt::Parser) -> Result<(), MsigError> {
@@ -472,7 +472,7 @@ fn cmd_info(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Msig
             println!(
                 "Vault: {} ({} SOL)",
                 info.vault_address,
-                table::format_sol(info.vault_balance_lamports)
+                format_sol(info.vault_balance_lamports)
             );
             if let Some(rc) = &info.rent_collector {
                 println!("Rent collector: {rc}");

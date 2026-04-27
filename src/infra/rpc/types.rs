@@ -119,7 +119,6 @@ pub struct SimulateValue {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct SimulationResult {
     pub err: Option<serde_json::Value>,
     pub logs: Vec<String>,

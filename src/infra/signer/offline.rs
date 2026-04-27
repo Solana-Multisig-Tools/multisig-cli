@@ -7,8 +7,8 @@
 //! - An Ed25519 envelope signature over canonical data
 //!
 //! This allows air-gapped signing workflows where a transaction is
-//! exported on a hot machine, signed on a cold machine with a Ledger,
-//! and imported back.
+//! exported on a hot machine, signed on a cold machine (with any
+//! configured signer — keypair file or Ledger), and imported back.
 
 use ed25519_dalek::Verifier;
 use serde::{Deserialize, Serialize};
@@ -168,7 +168,6 @@ pub fn compute_config_state_hash(
 // ---------------------------------------------------------------------------
 
 /// Parameters for exporting a transaction.
-#[allow(dead_code)] // cluster field reserved for cross-cluster validation
 pub struct ExportParams {
     pub version: u8,
     pub exporter_pubkey: solana_pubkey::Pubkey,
@@ -836,7 +835,6 @@ fn encode_short_vec_len(len: usize, out: &mut Vec<u8>) -> Result<(), MsigError> 
 /// Validate that the .sqds file targets the expected cluster.
 ///
 /// This is a best-effort check using the RPC URL prefix.
-#[allow(dead_code)] // Will be used when tx import validates cluster match
 pub fn validate_cluster_match(file_cluster: &str, current_cluster: &str) -> Result<(), MsigError> {
     // Normalize for comparison
     let normalize = |s: &str| -> String {

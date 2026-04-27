@@ -1,7 +1,7 @@
 use super::{load_config_only, next_verb, parse_value, GlobalOpts};
 use crate::application::inspect;
 use crate::error::{MsigError, OutputMode};
-use crate::output::{json, table};
+use crate::output::{format_sol, json};
 
 pub fn run(globals: GlobalOpts, mut parser: lexopt::Parser) -> Result<(), MsigError> {
     let verb = next_verb(&mut parser, "vault")?;
@@ -59,7 +59,7 @@ fn cmd_balance(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), M
         OutputMode::Json => json::print_json(&balances),
         OutputMode::Text => {
             println!("Vault [{}]: {}", vault_index, balances.vault_address);
-            println!("SOL: {}", table::format_sol(balances.sol_lamports));
+            println!("SOL: {}", format_sol(balances.sol_lamports));
             for tb in &balances.token_balances {
                 let sym = tb.symbol.as_deref().unwrap_or("???");
                 println!("{sym}: {}", tb.ui_amount);

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::error::MsigError;
+use crate::{error::MsigError, output::abbreviate_addr};
 
 /// Validate that a label contains only ASCII alphanumeric characters, hyphens, and underscores.
 pub fn validate_label(label: &str) -> Result<(), MsigError> {
@@ -55,21 +55,11 @@ pub fn resolve_address(input: &str, labels: &HashMap<String, String>) -> Result<
 /// If the pubkey has a label: "label (first4...last4)"
 /// Otherwise: "first4...last4"
 pub fn format_address(pubkey: &str, labels: &HashMap<String, String>) -> String {
-    let short = abbreviate_pubkey(pubkey);
+    let short = abbreviate_addr(pubkey);
     if let Some(label) = labels.get(pubkey) {
         format!("{label} ({short})")
     } else {
         short
-    }
-}
-
-fn abbreviate_pubkey(pubkey: &str) -> String {
-    if pubkey.len() <= 8 {
-        pubkey.to_string()
-    } else {
-        let first4 = &pubkey[..4];
-        let last4 = &pubkey[pubkey.len() - 4..];
-        format!("{first4}...{last4}")
     }
 }
 

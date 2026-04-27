@@ -158,20 +158,6 @@ pub fn format_permissions(permissions: u8) -> String {
     }
 }
 
-/// Format lamports as a trimmed SOL string (no trailing zeros).
-///
-/// Example: `1_500_000_000` -> `"1.5"`, `0` -> `"0"`, `1_000_000_000` -> `"1"`
-pub fn format_sol(lamports: u64) -> String {
-    let whole = lamports / 1_000_000_000;
-    let frac = lamports % 1_000_000_000;
-    if frac == 0 {
-        return format!("{whole}");
-    }
-    let frac_str = format!("{frac:09}");
-    let trimmed = frac_str.trim_end_matches('0');
-    format!("{whole}.{trimmed}")
-}
-
 /// Format a Unix timestamp as a relative time string.
 /// Uses the standard library to avoid a chrono dependency.
 pub fn format_relative_time(timestamp: i64) -> String {
@@ -210,16 +196,6 @@ fn current_unix_time() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_format_sol() {
-        assert_eq!(format_sol(0), "0");
-        assert_eq!(format_sol(1_000_000_000), "1");
-        assert_eq!(format_sol(1_234_567_890), "1.23456789");
-        assert_eq!(format_sol(500_000), "0.0005");
-        assert_eq!(format_sol(1_500_000_000), "1.5");
-        assert_eq!(format_sol(450_000_000), "0.45");
-    }
 
     #[test]
     fn test_format_permissions() {

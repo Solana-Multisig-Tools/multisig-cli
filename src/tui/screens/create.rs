@@ -3,6 +3,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use crate::output::abbreviate_addr;
 use crate::tui::app::{CreatePhase, CreateState};
 use crate::tui::format;
 use crate::tui::theme::Theme;
@@ -120,7 +121,7 @@ fn render_review(frame: &mut Frame, area: Rect, theme: &Theme, state: &CreateSta
         Line::from(vec![
             Span::styled(" Recipient ", theme.dim_style()),
             Span::styled(
-                format::short_addr(state.recipient.trim()),
+                abbreviate_addr(state.recipient.trim()),
                 theme.normal_style(),
             ),
         ]),

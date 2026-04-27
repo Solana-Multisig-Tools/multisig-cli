@@ -24,6 +24,9 @@ jobs:
     name: Rust checks
     runs-on: ubuntu-latest
     steps:
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:

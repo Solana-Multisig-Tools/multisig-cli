@@ -9,7 +9,6 @@ use crate::error::ParseError;
 #[derive(Debug, Clone)]
 pub struct ProposalAccount {
     pub multisig: Pubkey,
-    #[allow(dead_code)]
     pub transaction_index: u64,
     pub status: ProposalStatus,
     #[allow(dead_code)]

@@ -101,7 +101,6 @@ pub enum MsigError {
     Parse(ParseError),
     Transaction(String),
     SimulationFailed(String),
-    #[allow(dead_code)]
     InsufficientSignatures {
         have: u16,
         need: u16,

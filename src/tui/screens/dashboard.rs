@@ -6,6 +6,7 @@ use ratatui::Frame;
 
 use crate::domain::multisig::MultisigInfo;
 use crate::domain::proposal::ProposalSummary;
+use crate::output::{abbreviate_addr, format_sol};
 use crate::tui::app::{DashboardState, Loadable};
 use crate::tui::format;
 use crate::tui::theme::Theme;
@@ -47,7 +48,7 @@ pub fn render_dashboard(
 
     // Header
     let addr_display = multisig_addr
-        .map(format::short_addr)
+        .map(abbreviate_addr)
         .unwrap_or_else(|| "(none)".to_string());
     frame.render_widget(
         Paragraph::new(Line::from(vec![
@@ -108,8 +109,8 @@ fn render_multisig_info(
             );
         }
         Loadable::Loaded(info) => {
-            let bal = format::lamports_to_sol(info.vault_balance_lamports);
-            let vault = format::short_addr(&info.vault_address.to_string());
+            let bal = format_sol(info.vault_balance_lamports);
+            let vault = abbreviate_addr(&info.vault_address.to_string());
             let mc = info.members.len();
 
             let mut lines = vec![
@@ -127,7 +128,7 @@ fn render_multisig_info(
                 let perms = m.permissions.labels().join(", ");
                 lines.push(Line::from(vec![
                     Span::styled(
-                        format!("   {} ", format::short_addr(&addr)),
+                        format!("   {} ", abbreviate_addr(&addr)),
                         theme.normal_style(),
                     ),
                     Span::styled(perms, theme.dim_style()),
@@ -185,7 +186,7 @@ fn render_recent_proposals(
                 .map(|p| {
                     let (status_text, _) = format::status_display(p.status.label());
                     let bar = vote_bar_str(p.approved_count, p.threshold);
-                    let addr = format::short_addr(&p.address.to_string());
+                    let addr = abbreviate_addr(&p.address.to_string());
                     Row::new(vec![
                         format!("{}", p.index),
                         status_text.to_string(),
