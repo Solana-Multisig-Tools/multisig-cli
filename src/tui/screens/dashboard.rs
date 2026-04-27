@@ -6,6 +6,7 @@ use ratatui::Frame;
 
 use crate::domain::multisig::MultisigInfo;
 use crate::domain::proposal::ProposalSummary;
+use crate::output::format_sol;
 use crate::tui::app::{DashboardState, Loadable};
 use crate::tui::format;
 use crate::tui::theme::Theme;
@@ -108,7 +109,7 @@ fn render_multisig_info(
             );
         }
         Loadable::Loaded(info) => {
-            let bal = format::lamports_to_sol(info.vault_balance_lamports);
+            let bal = format_sol(info.vault_balance_lamports);
             let vault = format::short_addr(&info.vault_address.to_string());
             let mc = info.members.len();
 

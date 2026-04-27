@@ -644,7 +644,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
             let owner = read_pubkey(data, 20)
                 .map(|p| short_addr(&p))
                 .unwrap_or_default();
-            let sol = crate::output::table::format_sol(lamports);
+            let sol = crate::output::format_sol(lamports);
             Some(format!(
                 "CreateAccount {sol} SOL, space={space}, owner={owner}, new={}",
                 acct(accounts, 1)
@@ -663,7 +663,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
         2 => {
             // Transfer: lamports(u64)
             let lamports = read_u64(data, 4)?;
-            let sol = crate::output::table::format_sol(lamports);
+            let sol = crate::output::format_sol(lamports);
             Some(format!("Transfer {sol} SOL \u{2192} {}", acct(accounts, 1)))
         }
         3 => {
@@ -672,7 +672,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
             if let Some((_seed, consumed)) = seed_result {
                 let lam_off = 4 + 32 + consumed;
                 let lamports = read_u64(data, lam_off).unwrap_or(0);
-                let sol = crate::output::table::format_sol(lamports);
+                let sol = crate::output::format_sol(lamports);
                 Some(format!("CreateAccountWithSeed {sol} SOL"))
             } else {
                 Some("CreateAccountWithSeed".to_string())
@@ -682,7 +682,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
         5 => {
             // WithdrawNonceAccount: lamports(u64)
             let lamports = read_u64(data, 4)?;
-            let sol = crate::output::table::format_sol(lamports);
+            let sol = crate::output::format_sol(lamports);
             Some(format!(
                 "WithdrawNonceAccount {sol} SOL to={}",
                 acct(accounts, 1)
@@ -715,7 +715,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
         11 => {
             // TransferWithSeed: lamports(u64) + from_seed_len + seed + from_owner
             let lamports = read_u64(data, 4).unwrap_or(0);
-            let sol = crate::output::table::format_sol(lamports);
+            let sol = crate::output::format_sol(lamports);
             Some(format!("TransferWithSeed {sol} SOL"))
         }
         12 => Some("UpgradeNonceAccount".to_string()),

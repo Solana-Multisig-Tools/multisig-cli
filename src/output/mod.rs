@@ -24,3 +24,32 @@ pub fn should_use_color() -> bool {
 fn stdout_is_tty() -> bool {
     std::io::IsTerminal::is_terminal(&std::io::stdout())
 }
+
+/// Format lamports as a trimmed SOL string (no trailing zeros).
+///
+/// Example: `1_500_000_000` -> `"1.5"`, `0` -> `"0"`, `1_000_000_000` -> `"1"`
+pub fn format_sol(lamports: u64) -> String {
+    let whole = lamports / 1_000_000_000;
+    let frac = lamports % 1_000_000_000;
+    if frac == 0 {
+        return format!("{whole}");
+    }
+    let frac_str = format!("{frac:09}");
+    let trimmed = frac_str.trim_end_matches('0');
+    format!("{whole}.{trimmed}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_sol() {
+        assert_eq!(format_sol(0), "0");
+        assert_eq!(format_sol(1_000_000_000), "1");
+        assert_eq!(format_sol(1_234_567_890), "1.23456789");
+        assert_eq!(format_sol(500_000), "0.0005");
+        assert_eq!(format_sol(1_500_000_000), "1.5");
+        assert_eq!(format_sol(450_000_000), "0.45");
+    }
+}

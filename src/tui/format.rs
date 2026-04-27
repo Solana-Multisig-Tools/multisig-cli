@@ -61,18 +61,6 @@ pub fn spinner_frame(tick: u64) -> char {
     FRAMES[(tick as usize) % FRAMES.len()]
 }
 
-/// Format lamports as SOL, trimming trailing zeros. No floating point.
-pub fn lamports_to_sol(lamports: u64) -> String {
-    let whole = lamports / 1_000_000_000;
-    let frac = lamports % 1_000_000_000;
-    if frac == 0 {
-        return format!("{whole}");
-    }
-    let frac_str = format!("{frac:09}");
-    let trimmed = frac_str.trim_end_matches('0');
-    format!("{whole}.{trimmed}")
-}
-
 /// Build a help bar from key-label pairs.
 pub fn help_spans<'a>(
     pairs: &[(&'a str, &'a str)],
@@ -121,14 +109,6 @@ mod tests {
     #[test]
     fn short_addr_short_passthrough() {
         assert_eq!(short_addr("AbCd"), "AbCd");
-    }
-
-    #[test]
-    fn lamports_to_sol_formats() {
-        assert_eq!(lamports_to_sol(1_234_567_890), "1.23456789");
-        assert_eq!(lamports_to_sol(0), "0");
-        assert_eq!(lamports_to_sol(1), "0.000000001");
-        assert_eq!(lamports_to_sol(1_500_000_000), "1.5");
     }
 
     #[test]

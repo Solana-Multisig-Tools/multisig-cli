@@ -739,8 +739,8 @@ fn render_account_diff(diff: &AccountDiff) {
     if diff.lamports_delta != 0 {
         println!(
             "      SOL: {} -> {} ({})",
-            crate::output::table::format_sol(diff.lamports_before),
-            crate::output::table::format_sol(diff.lamports_after),
+            crate::output::format_sol(diff.lamports_before),
+            crate::output::format_sol(diff.lamports_after),
             format_signed_sol(diff.lamports_delta),
         );
     }
@@ -786,7 +786,7 @@ fn format_signed_sol(delta: i128) -> String {
     let sign = if delta >= 0 { "+" } else { "-" };
     let amount = delta.unsigned_abs();
     let lamports = u64::try_from(amount).unwrap_or(u64::MAX);
-    format!("{sign}{} SOL", crate::output::table::format_sol(lamports))
+    format!("{sign}{} SOL", crate::output::format_sol(lamports))
 }
 
 fn format_token_amount(amount: u64, decimals: Option<u8>) -> String {

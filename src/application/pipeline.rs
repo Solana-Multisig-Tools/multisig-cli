@@ -756,7 +756,7 @@ fn decode_system_instruction(ix: &Instruction) -> Option<String> {
                 .unwrap_or_else(|| "(missing recipient)".to_string());
             Some(format!(
                 "System transfer {} SOL -> {}",
-                crate::output::table::format_sol(lamports),
+                crate::output::format_sol(lamports),
                 recipient
             ))
         }
