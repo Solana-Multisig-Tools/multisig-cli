@@ -51,7 +51,7 @@ fn build_bpf_upgrade_instruction(
     }
 }
 
-fn build_program_upgrade_vault_transaction_create_instruction(
+pub fn build_program_upgrade_vault_transaction_create_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     transaction: Pubkey,
@@ -80,7 +80,7 @@ fn build_program_upgrade_vault_transaction_create_instruction(
     }
 }
 
-fn build_program_upgrade_proposal_create_instruction(
+pub fn build_program_upgrade_proposal_create_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
@@ -106,7 +106,7 @@ fn build_program_upgrade_proposal_create_instruction(
     }
 }
 
-fn build_program_upgrade_proposal_activate_instruction(
+pub fn build_program_upgrade_proposal_activate_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,

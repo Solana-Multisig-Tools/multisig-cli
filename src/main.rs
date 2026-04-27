@@ -1,16 +1,5 @@
-#![deny(clippy::unwrap_used, clippy::expect_used)]
-
-mod application;
-mod cli;
-mod domain;
-mod error;
-mod infra;
-mod output;
-mod sanitize;
-#[cfg(feature = "tui")]
-mod tui;
-
-use error::{install_panic_handler, OutputMode};
+use msig::cli;
+use msig::error::{install_panic_handler, OutputMode};
 
 fn main() {
     let output_mode = detect_output_mode_early();

@@ -112,6 +112,36 @@ msig tx import approve-combined.sqds
 
 More detail: [docs/trust-policy.md](docs/trust-policy.md) and [docs/ci-release.md](docs/ci-release.md).
 
+## Library API: instruction-builder feature
+
+`msig` doubles as a Rust library that publishes the canonical Squads multisig v4 data types and instruction builders, so other client SDKs can produce v4 instructions byte-for-byte identical to those produced by this CLI without copying the implementation or pulling in the Squads SDK dependency tree.
+
+Add the dependency with default features off so the Ledger transport, the binary entry point, and the rest of the CLI-only surface stay out of your build:
+
+```toml
+[dependencies]
+msig = { git = "https://github.com/Solana-Multisig-Tools/v4-cli", default-features = false, features = ["instruction-builder"] }
+```
+
+The `instruction-builder` feature pulls in `solana-instruction` and exposes the `msig::instruction_builder` module, which re-exports the pure v4 data types from `msig::domain` and provides Solana-typed instruction builders that return `solana_instruction::Instruction`:
+
+```rust
+use msig::instruction_builder as v4;
+use solana_instruction::Instruction;
+use solana_pubkey::Pubkey;
+
+fn approve_proposal(
+    program_id: Pubkey,
+    multisig: Pubkey,
+    proposal: Pubkey,
+    member: Pubkey,
+) -> Instruction {
+    v4::vote(program_id, multisig, proposal, member, v4::Vote::Approve)
+}
+```
+
+Building this CLI as a binary is unaffected: the feature is opt-in, and the binary build pulls zero additional dependencies.
+
 ## Docs
 
 - [Mainnet operator checklist](docs/mainnet-operator-checklist.md)

@@ -27,7 +27,7 @@ pub struct VaultProposalResult {
     pub proposal: Pubkey,
 }
 
-fn build_vault_transaction_create_instruction(
+pub fn build_vault_transaction_create_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     transaction: Pubkey,
@@ -63,7 +63,7 @@ fn build_vault_transaction_create_instruction(
     })
 }
 
-fn build_proposal_create_instruction(
+pub fn build_proposal_create_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
@@ -89,7 +89,7 @@ fn build_proposal_create_instruction(
     }
 }
 
-fn build_proposal_activate_instruction(
+pub fn build_proposal_activate_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,

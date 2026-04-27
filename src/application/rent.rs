@@ -18,12 +18,12 @@ const VAULT_TX_ACCOUNTS_CLOSE_DISC: [u8; 8] = [0xc4, 0x47, 0xbb, 0xb0, 0x02, 0x2
 const CONFIG_TX_ACCOUNTS_CLOSE_DISC: [u8; 8] = [0x50, 0xcb, 0x54, 0x35, 0x97, 0x70, 0xbb, 0xba];
 
 #[derive(Clone, Copy)]
-enum TxKind {
+pub enum TxKind {
     Vault,
     Config,
 }
 
-fn build_transaction_accounts_close_instruction(
+pub fn build_transaction_accounts_close_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,

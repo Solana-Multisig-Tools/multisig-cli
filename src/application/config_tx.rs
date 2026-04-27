@@ -32,7 +32,7 @@ pub struct SpendingLimitProposalResult {
 }
 
 #[derive(Debug, Clone)]
-enum ConfigTransactionAction {
+pub enum ConfigTransactionAction {
     AddMember {
         member: Pubkey,
         permissions: u8,
@@ -63,7 +63,7 @@ enum ConfigTransactionAction {
     },
 }
 
-fn build_config_transaction_create_instruction(
+pub fn build_config_transaction_create_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     transaction: Pubkey,
@@ -158,7 +158,7 @@ fn period_tag(period: SpendingLimitPeriod) -> u8 {
     }
 }
 
-fn build_proposal_create_instruction(
+pub fn build_proposal_create_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
@@ -184,7 +184,7 @@ fn build_proposal_create_instruction(
     }
 }
 
-fn build_proposal_activate_instruction(
+pub fn build_proposal_activate_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,

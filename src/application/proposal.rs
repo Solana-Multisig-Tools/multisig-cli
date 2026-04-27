@@ -27,7 +27,7 @@ pub struct ExecuteProposalPlan {
     pub watched_accounts: Vec<Pubkey>,
 }
 
-fn build_vote_instruction(
+pub fn build_vote_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
@@ -50,7 +50,7 @@ fn build_vote_instruction(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_vault_transaction_execute_instruction(
+pub fn build_vault_transaction_execute_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
@@ -98,7 +98,7 @@ fn build_vault_transaction_execute_instruction(
     }
 }
 
-fn build_config_transaction_execute_instruction(
+pub fn build_config_transaction_execute_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
