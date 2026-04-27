@@ -7,8 +7,8 @@
 //! - An Ed25519 envelope signature over canonical data
 //!
 //! This allows air-gapped signing workflows where a transaction is
-//! exported on a hot machine, signed on a cold machine with a Ledger,
-//! and imported back.
+//! exported on a hot machine, signed on a cold machine (with any
+//! configured signer — keypair file or Ledger), and imported back.
 
 use ed25519_dalek::Verifier;
 use serde::{Deserialize, Serialize};

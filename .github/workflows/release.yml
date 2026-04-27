@@ -68,6 +68,9 @@ jobs:
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "dry_run=${dry_run}" >> "${GITHUB_OUTPUT}"
 
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Install pinned Rust toolchain
         run: rustup toolchain install
 
@@ -145,6 +148,10 @@ jobs:
         with:
           ref: ${{ needs.validate.outputs.tag }}
           persist-credentials: false
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install --target ${{ matrix.target }}
