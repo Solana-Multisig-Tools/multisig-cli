@@ -66,3 +66,14 @@ impl From<Instruction> for solana_instruction::Instruction {
         }
     }
 }
+
+#[cfg(feature = "instruction-builder")]
+impl From<solana_instruction::Instruction> for Instruction {
+    fn from(ix: solana_instruction::Instruction) -> Self {
+        Self {
+            program_id: ix.program_id,
+            accounts: ix.accounts.into_iter().map(Into::into).collect(),
+            data: ix.data,
+        }
+    }
+}

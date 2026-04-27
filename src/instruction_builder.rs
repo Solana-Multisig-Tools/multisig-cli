@@ -18,7 +18,10 @@
 use solana_instruction::{AccountMeta as SolAccountMeta, Instruction as SolInstruction};
 use solana_pubkey::Pubkey;
 
-use crate::{error::MsigError, infra::instruction::AccountMeta};
+use crate::{
+    error::MsigError,
+    infra::instruction::{AccountMeta, Instruction as InternalInstruction},
+};
 
 pub use crate::{
     application::{config_tx, multisig, program_upgrade, proposal, rent, vault_tx},
@@ -99,9 +102,27 @@ pub fn config_transaction_execute(
     .into()
 }
 
+/// Serialize inner instructions into the wire-format `transaction_message`
+/// bytes expected by [`vault_transaction_create`].
+///
+/// The bytes use the v4 program's `SmallVec<L, T>` length prefixes (u8 for
+/// vector counts, u16 for instruction data). The first account in the
+/// resulting message is always `vault` as a writable signer; remaining
+/// accounts are deduplicated and ordered (signers-then-non-signers,
+/// writables-first within each group) per Solana's canonical message layout.
+pub fn serialize_vault_transaction_message(
+    instructions: &[SolInstruction],
+    vault: &Pubkey,
+) -> Result<Vec<u8>, MsigError> {
+    let internal: Vec<InternalInstruction> =
+        instructions.iter().cloned().map(Into::into).collect();
+    crate::application::pipeline::serialize_vault_transaction_message(&internal, vault)
+}
+
 /// Build the `vaultTransactionCreate` instruction. `transaction_message` is the
 /// pre-serialized inner message bytes (see the v4 program's `TransactionMessage`
-/// layout).
+/// layout); use [`serialize_vault_transaction_message`] to produce them from
+/// `solana_instruction::Instruction` values.
 pub fn vault_transaction_create(
     program_id: Pubkey,
     multisig: Pubkey,
