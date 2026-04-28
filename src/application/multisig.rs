@@ -65,7 +65,7 @@ fn fetch_treasury(rpc: &dyn RpcProvider, program_id: &Pubkey) -> Result<Pubkey, 
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_multisig_create_v2_instruction(
+pub(crate) fn build_multisig_create_v2_instruction(
     program_id: Pubkey,
     program_config: Pubkey,
     treasury: Pubkey,

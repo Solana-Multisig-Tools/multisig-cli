@@ -19,6 +19,8 @@ use super::pipeline::{execute_transaction, execute_transaction_quiet, PreparedTr
 
 const VAULT_TX_EXECUTE_DISC: [u8; 8] = [0xc2, 0x08, 0xa1, 0x57, 0x99, 0xa4, 0x19, 0xab];
 const CONFIG_TX_EXECUTE_DISC: [u8; 8] = [0x72, 0x92, 0xf4, 0xbd, 0xfc, 0x8c, 0x24, 0x28];
+const PROPOSAL_CREATE_DISC: [u8; 8] = [0xdc, 0x3c, 0x49, 0xe0, 0x1e, 0x6c, 0x4f, 0x9f];
+const PROPOSAL_ACTIVATE_DISC: [u8; 8] = [0x0b, 0x22, 0x5c, 0xf8, 0x9a, 0x1b, 0x33, 0x6a];
 const SYSTEM_PROGRAM: Pubkey = solana_pubkey::pubkey!("11111111111111111111111111111111");
 
 #[derive(Debug, Clone)]
@@ -27,7 +29,53 @@ pub struct ExecuteProposalPlan {
     pub watched_accounts: Vec<Pubkey>,
 }
 
-fn build_vote_instruction(
+pub(crate) fn build_proposal_create_instruction(
+    program_id: Pubkey,
+    multisig: Pubkey,
+    proposal: Pubkey,
+    creator: Pubkey,
+    transaction_index: u64,
+    draft: bool,
+) -> Instruction {
+    let mut data = Vec::new();
+    data.extend_from_slice(&PROPOSAL_CREATE_DISC);
+    data.extend_from_slice(&transaction_index.to_le_bytes());
+    data.push(u8::from(draft));
+
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new_readonly(multisig, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(creator, true),
+            AccountMeta::new(creator, true),
+            AccountMeta::new_readonly(SYSTEM_PROGRAM, false),
+        ],
+        data,
+    }
+}
+
+pub(crate) fn build_proposal_activate_instruction(
+    program_id: Pubkey,
+    multisig: Pubkey,
+    proposal: Pubkey,
+    creator: Pubkey,
+) -> Instruction {
+    let mut data = Vec::new();
+    data.extend_from_slice(&PROPOSAL_ACTIVATE_DISC);
+
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new_readonly(multisig, false),
+            AccountMeta::new(creator, true),
+            AccountMeta::new(proposal, false),
+        ],
+        data,
+    }
+}
+
+pub(crate) fn build_vote_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
@@ -50,7 +98,7 @@ fn build_vote_instruction(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_vault_transaction_execute_instruction(
+pub fn build_vault_transaction_execute_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
@@ -98,7 +146,7 @@ fn build_vault_transaction_execute_instruction(
     }
 }
 
-fn build_config_transaction_execute_instruction(
+pub(crate) fn build_config_transaction_execute_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,

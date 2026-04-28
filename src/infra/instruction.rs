@@ -33,3 +33,47 @@ pub struct Instruction {
     pub accounts: Vec<AccountMeta>,
     pub data: Vec<u8>,
 }
+
+#[cfg(feature = "instruction-builder")]
+impl From<AccountMeta> for solana_instruction::AccountMeta {
+    fn from(m: AccountMeta) -> Self {
+        Self {
+            pubkey: m.pubkey,
+            is_signer: m.is_signer,
+            is_writable: m.is_writable,
+        }
+    }
+}
+
+#[cfg(feature = "instruction-builder")]
+impl From<solana_instruction::AccountMeta> for AccountMeta {
+    fn from(m: solana_instruction::AccountMeta) -> Self {
+        Self {
+            pubkey: m.pubkey,
+            is_signer: m.is_signer,
+            is_writable: m.is_writable,
+        }
+    }
+}
+
+#[cfg(feature = "instruction-builder")]
+impl From<Instruction> for solana_instruction::Instruction {
+    fn from(ix: Instruction) -> Self {
+        Self {
+            program_id: ix.program_id,
+            accounts: ix.accounts.into_iter().map(Into::into).collect(),
+            data: ix.data,
+        }
+    }
+}
+
+#[cfg(feature = "instruction-builder")]
+impl From<solana_instruction::Instruction> for Instruction {
+    fn from(ix: solana_instruction::Instruction) -> Self {
+        Self {
+            program_id: ix.program_id,
+            accounts: ix.accounts.into_iter().map(Into::into).collect(),
+            data: ix.data,
+        }
+    }
+}

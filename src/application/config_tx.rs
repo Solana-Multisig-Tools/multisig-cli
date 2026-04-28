@@ -10,12 +10,13 @@ use crate::infra::pda;
 use crate::infra::rpc::RpcProvider;
 use crate::infra::signer::Signer;
 
-use super::pipeline::{execute_transaction, execute_transaction_quiet, PreparedTransaction};
+use super::{
+    pipeline::{execute_transaction, execute_transaction_quiet, PreparedTransaction},
+    proposal::{build_proposal_activate_instruction, build_proposal_create_instruction},
+};
 
 const SYSTEM_PROGRAM: Pubkey = solana_pubkey::pubkey!("11111111111111111111111111111111");
 const CONFIG_TX_CREATE_DISC: [u8; 8] = [0x9b, 0xec, 0x57, 0xe4, 0x89, 0x4b, 0x51, 0x27];
-const PROPOSAL_CREATE_DISC: [u8; 8] = [0xdc, 0x3c, 0x49, 0xe0, 0x1e, 0x6c, 0x4f, 0x9f];
-const PROPOSAL_ACTIVATE_DISC: [u8; 8] = [0x0b, 0x22, 0x5c, 0xf8, 0x9a, 0x1b, 0x33, 0x6a];
 const CONFIG_ACTION_ADD_MEMBER: u8 = 0;
 const CONFIG_ACTION_REMOVE_MEMBER: u8 = 1;
 const CONFIG_ACTION_CHANGE_THRESHOLD: u8 = 2;
@@ -32,7 +33,7 @@ pub struct SpendingLimitProposalResult {
 }
 
 #[derive(Debug, Clone)]
-enum ConfigTransactionAction {
+pub enum ConfigTransactionAction {
     AddMember {
         member: Pubkey,
         permissions: u8,
@@ -63,7 +64,7 @@ enum ConfigTransactionAction {
     },
 }
 
-fn build_config_transaction_create_instruction(
+pub(crate) fn build_config_transaction_create_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     transaction: Pubkey,
@@ -155,52 +156,6 @@ fn period_tag(period: SpendingLimitPeriod) -> u8 {
         SpendingLimitPeriod::Day => 1,
         SpendingLimitPeriod::Week => 2,
         SpendingLimitPeriod::Month => 3,
-    }
-}
-
-fn build_proposal_create_instruction(
-    program_id: Pubkey,
-    multisig: Pubkey,
-    proposal: Pubkey,
-    creator: Pubkey,
-    transaction_index: u64,
-    draft: bool,
-) -> Instruction {
-    let mut data = Vec::new();
-    data.extend_from_slice(&PROPOSAL_CREATE_DISC);
-    data.extend_from_slice(&transaction_index.to_le_bytes());
-    data.push(u8::from(draft));
-
-    Instruction {
-        program_id,
-        accounts: vec![
-            AccountMeta::new_readonly(multisig, false),
-            AccountMeta::new(proposal, false),
-            AccountMeta::new_readonly(creator, true),
-            AccountMeta::new(creator, true),
-            AccountMeta::new_readonly(SYSTEM_PROGRAM, false),
-        ],
-        data,
-    }
-}
-
-fn build_proposal_activate_instruction(
-    program_id: Pubkey,
-    multisig: Pubkey,
-    proposal: Pubkey,
-    creator: Pubkey,
-) -> Instruction {
-    let mut data = Vec::new();
-    data.extend_from_slice(&PROPOSAL_ACTIVATE_DISC);
-
-    Instruction {
-        program_id,
-        accounts: vec![
-            AccountMeta::new_readonly(multisig, false),
-            AccountMeta::new(creator, true),
-            AccountMeta::new(proposal, false),
-        ],
-        data,
     }
 }
 

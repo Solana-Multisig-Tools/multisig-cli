@@ -44,10 +44,14 @@ ledger-transport-hid = { version = "0.10", optional = true }
 ledger-apdu = { version = "0.10", optional = true }
 ed25519-dalek = "2.2.0"
 
+# Optional: Solana Instruction type for the library SDK (feature-gated)
+solana-instruction = { version = "2", default-features = false, features = ["std"], optional = true }
+
 [features]
 default = ["ledger"]
 tui = ["dep:ratatui", "dep:crossterm"]
 ledger = ["dep:ledger-transport-hid", "dep:ledger-apdu"]
+instruction-builder = ["dep:solana-instruction"]
 
 [[bin]]
 name = "msig"
