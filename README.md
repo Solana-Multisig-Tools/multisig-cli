@@ -1,6 +1,6 @@
 # msig
 
-Official CLI for Squads Multisig v4 on Solana.
+CLI for Squads Multisig v4 on Solana.
 
 `msig` is built for operators who need to review, simulate, sign, and execute Squads proposals from a small Rust binary. It uses hand-written Squads v4 account and instruction parsing instead of pulling in the Squads SDK dependency tree.
 
