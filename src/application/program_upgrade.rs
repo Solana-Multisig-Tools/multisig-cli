@@ -8,8 +8,9 @@ use crate::infra::pda;
 use crate::infra::rpc::RpcProvider;
 use crate::infra::signer::Signer;
 
-use super::pipeline::{
-    execute_transaction, serialize_vault_transaction_message, PreparedTransaction,
+use super::{
+    pipeline::{execute_transaction, serialize_vault_transaction_message, PreparedTransaction},
+    proposal::{build_proposal_activate_instruction, build_proposal_create_instruction},
 };
 
 const SYSTEM_PROGRAM: Pubkey = solana_pubkey::pubkey!("11111111111111111111111111111111");
@@ -19,8 +20,6 @@ const RENT_SYSVAR: Pubkey = solana_pubkey::pubkey!("SysvarRent111111111111111111
 const CLOCK_SYSVAR: Pubkey = solana_pubkey::pubkey!("SysvarC1ock11111111111111111111111111111111");
 
 const VAULT_TX_CREATE_DISC: [u8; 8] = [0x30, 0xfa, 0x4e, 0xa8, 0xd0, 0xe2, 0xda, 0xd3];
-const PROPOSAL_CREATE_DISC: [u8; 8] = [0xdc, 0x3c, 0x49, 0xe0, 0x1e, 0x6c, 0x4f, 0x9f];
-const PROPOSAL_ACTIVATE_DISC: [u8; 8] = [0x0b, 0x22, 0x5c, 0xf8, 0x9a, 0x1b, 0x33, 0x6a];
 
 fn derive_program_data(program_id: &Pubkey) -> Pubkey {
     let (pda, _) = pda::find_program_address(&[program_id.as_ref()], &BPF_LOADER_UPGRADEABLE);
@@ -51,7 +50,7 @@ fn build_bpf_upgrade_instruction(
     }
 }
 
-pub fn build_program_upgrade_vault_transaction_create_instruction(
+pub(crate) fn build_program_upgrade_vault_transaction_create_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     transaction: Pubkey,
@@ -75,52 +74,6 @@ pub fn build_program_upgrade_vault_transaction_create_instruction(
             AccountMeta::new_readonly(creator, true),
             AccountMeta::new(creator, true),
             AccountMeta::new_readonly(SYSTEM_PROGRAM, false),
-        ],
-        data,
-    }
-}
-
-pub fn build_program_upgrade_proposal_create_instruction(
-    program_id: Pubkey,
-    multisig: Pubkey,
-    proposal: Pubkey,
-    creator: Pubkey,
-    transaction_index: u64,
-    draft: bool,
-) -> Instruction {
-    let mut data = Vec::new();
-    data.extend_from_slice(&PROPOSAL_CREATE_DISC);
-    data.extend_from_slice(&transaction_index.to_le_bytes());
-    data.push(u8::from(draft));
-
-    Instruction {
-        program_id,
-        accounts: vec![
-            AccountMeta::new_readonly(multisig, false),
-            AccountMeta::new(proposal, false),
-            AccountMeta::new_readonly(creator, true),
-            AccountMeta::new(creator, true),
-            AccountMeta::new_readonly(SYSTEM_PROGRAM, false),
-        ],
-        data,
-    }
-}
-
-pub fn build_program_upgrade_proposal_activate_instruction(
-    program_id: Pubkey,
-    multisig: Pubkey,
-    proposal: Pubkey,
-    creator: Pubkey,
-) -> Instruction {
-    let mut data = Vec::new();
-    data.extend_from_slice(&PROPOSAL_ACTIVATE_DISC);
-
-    Instruction {
-        program_id,
-        accounts: vec![
-            AccountMeta::new_readonly(multisig, false),
-            AccountMeta::new(creator, true),
-            AccountMeta::new(proposal, false),
         ],
         data,
     }
@@ -194,7 +147,7 @@ pub fn create_program_upgrade_proposal(
         &inner_msg,
     ));
 
-    instructions.push(build_program_upgrade_proposal_create_instruction(
+    instructions.push(build_proposal_create_instruction(
         squads_program_id,
         *multisig_addr,
         proposal_pubkey,
@@ -203,7 +156,7 @@ pub fn create_program_upgrade_proposal(
         true,
     ));
 
-    instructions.push(build_program_upgrade_proposal_activate_instruction(
+    instructions.push(build_proposal_activate_instruction(
         squads_program_id,
         *multisig_addr,
         proposal_pubkey,

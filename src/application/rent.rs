@@ -8,6 +8,7 @@ use crate::infra::instruction::{AccountMeta, Instruction};
 use crate::infra::pda;
 use crate::infra::rpc::RpcProvider;
 use crate::infra::signer::Signer;
+use crate::output::format_sol;
 
 use super::pipeline::{execute_transaction, PreparedTransaction};
 
@@ -23,7 +24,7 @@ pub enum TxKind {
     Config,
 }
 
-pub fn build_transaction_accounts_close_instruction(
+pub(crate) fn build_transaction_accounts_close_instruction(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
@@ -189,7 +190,7 @@ pub fn claim_rent(
     }
 
     println!();
-    let sol_est = format_sol_estimate(total_reclaimed);
+    let sol_est = format_sol(total_reclaimed);
     if dry_run {
         println!(
             "Dry run: would reclaim ~{sol_est} SOL from {} proposals.",
@@ -202,16 +203,4 @@ pub fn claim_rent(
         );
     }
     Ok(())
-}
-
-fn format_sol_estimate(lamports: u64) -> String {
-    let whole = lamports / 1_000_000_000;
-    let frac = lamports % 1_000_000_000;
-    if frac == 0 {
-        format!("{whole}")
-    } else {
-        let frac_str = format!("{frac:09}");
-        let trimmed = frac_str.trim_end_matches('0');
-        format!("{whole}.{trimmed}")
-    }
 }

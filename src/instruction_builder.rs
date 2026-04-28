@@ -19,14 +19,15 @@ use solana_instruction::{AccountMeta as SolAccountMeta, Instruction as SolInstru
 use solana_pubkey::Pubkey;
 
 use crate::{
+    application::{config_tx, multisig, program_upgrade, proposal, rent, vault_tx},
     error::MsigError,
     infra::instruction::{AccountMeta, Instruction as InternalInstruction},
 };
 
 pub use crate::{
-    application::{config_tx, multisig, program_upgrade, proposal, rent, vault_tx},
+    application::{config_tx::ConfigTransactionAction, rent::TxKind},
     domain::{
-        multisig::{Member, MultisigInfo, Permissions, TokenBalance, VaultBalances},
+        multisig::{Member, MultisigInfo, Permissions},
         proposal::{ProposalDetail, ProposalStatus, ProposalSummary, TransactionType, Vote},
         transaction::{
             AccountRef, ConfigAction, ConfigTxInfo, InstructionSummary, SpendingLimitPeriod,
@@ -114,8 +115,7 @@ pub fn serialize_vault_transaction_message(
     instructions: &[SolInstruction],
     vault: &Pubkey,
 ) -> Result<Vec<u8>, MsigError> {
-    let internal: Vec<InternalInstruction> =
-        instructions.iter().cloned().map(Into::into).collect();
+    let internal: Vec<InternalInstruction> = instructions.iter().cloned().map(Into::into).collect();
     crate::application::pipeline::serialize_vault_transaction_message(&internal, vault)
 }
 
@@ -152,7 +152,7 @@ pub fn proposal_create(
     transaction_index: u64,
     draft: bool,
 ) -> SolInstruction {
-    vault_tx::build_proposal_create_instruction(
+    proposal::build_proposal_create_instruction(
         program_id,
         multisig,
         proposal,
@@ -170,7 +170,7 @@ pub fn proposal_activate(
     proposal: Pubkey,
     creator: Pubkey,
 ) -> SolInstruction {
-    vault_tx::build_proposal_activate_instruction(program_id, multisig, proposal, creator).into()
+    proposal::build_proposal_activate_instruction(program_id, multisig, proposal, creator).into()
 }
 
 /// Build the `configTransactionCreate` instruction.
@@ -228,7 +228,7 @@ pub fn transaction_accounts_close(
     proposal: Pubkey,
     transaction: Pubkey,
     rent_collector: Pubkey,
-    kind: rent::TxKind,
+    kind: TxKind,
 ) -> SolInstruction {
     rent::build_transaction_accounts_close_instruction(
         program_id,
