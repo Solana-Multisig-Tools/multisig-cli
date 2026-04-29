@@ -1,5 +1,5 @@
 {
-  description = "Solana dev environment for Hylo protocol";
+  description = "Solana dev environment for the msig CLI";
   inputs = {
     nixpkgs.url =
       "github:NixOS/nixpkgs/6b70ae9e4f9738d69a7f1e5cdf05415ce233e358";
