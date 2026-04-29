@@ -19,9 +19,7 @@
         };
         let
           sharedBuildInputs = [ libiconv pkg-config gcc openssl ];
-          rustStable = rust-bin.stable."1.95.0".default.override {
-            extensions = [ "rust-analyzer" "rust-src" ];
-          };
+          rustStable = rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
           rustPlatform = makeRustPlatform {
             cargo = rustStable;
             rustc = rustStable;
