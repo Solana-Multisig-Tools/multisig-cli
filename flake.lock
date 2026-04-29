@@ -15,23 +15,21 @@
       "original": {
         "owner": "hercules-ci",
         "repo": "flake-parts",
-        "rev": "3107b77cd68437b9a76194f0f7f9c55f2329ca5b",
         "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1777410396,
-        "narHash": "sha256-IzE0KpbGlUM+JabBXTdJlqqxmN5IVQQo+Wqpi0SlHao=",
+        "lastModified": 1777422614,
+        "narHash": "sha256-qD5n67wDKpe5k4HyYe38XLD8h4KsBmNeOVdQV3Wbk+4=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "6b70ae9e4f9738d69a7f1e5cdf05415ce233e358",
+        "rev": "3b5aab53c1eb8a889f3ad25d97f003c096234a9a",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "6b70ae9e4f9738d69a7f1e5cdf05415ce233e358",
         "type": "github"
       }
     },
@@ -88,7 +86,6 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "146e7bf7569b8288f24d41d806b9f584f7cfd5b5",
         "type": "github"
       }
     }
