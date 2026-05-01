@@ -12,7 +12,7 @@ use crate::infra::address_lookup_table;
 use crate::infra::instruction::AccountMeta;
 use crate::infra::pda;
 use crate::infra::rpc::RpcProvider;
-use crate::output::{abbreviate_addr, format_sol};
+use crate::output::{format_addr, format_sol};
 
 /// Fetch full multisig info including vault balance.
 pub fn fetch_multisig_info(
@@ -135,6 +135,7 @@ pub fn get_proposal_detail(
     multisig_addr: &Pubkey,
     index: u64,
     program_id: &Pubkey,
+    truncate: bool,
 ) -> Result<ProposalDetail, MsigError> {
     let multisig_str = multisig_addr.to_string();
     let (prop_pubkey, _) = pda::proposal_pda(multisig_addr, index, program_id);
@@ -166,8 +167,8 @@ pub fn get_proposal_detail(
     if let Some(tx_acct) = tx_account {
         if let Ok(vtx) = VaultTransactionAccount::parse(&tx_acct.data) {
             transaction_type = TransactionType::Vault;
-            let mut instructions = decode_instructions(rpc, &vtx)?;
-            resolve_token_amounts(rpc, &mut instructions, &vtx.message);
+            let mut instructions = decode_instructions(rpc, &vtx, truncate)?;
+            resolve_token_amounts(rpc, &mut instructions, &vtx.message, truncate);
             vault_tx = Some(VaultTxInfo {
                 creator: vtx.creator,
                 vault_index: vtx.vault_index,
@@ -320,6 +321,7 @@ fn resolve_token_amounts(
     rpc: &dyn RpcProvider,
     instructions: &mut [InstructionSummary],
     _msg: &crate::infra::accounts::vault_tx::TransactionMessage,
+    truncate: bool,
 ) {
     let token_programs: &[&str] = &[
         "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
@@ -426,7 +428,7 @@ fn resolve_token_amounts(
             _ => "",
         };
 
-        let dest = acct(&instructions[ix_idx].accounts, 1);
+        let dest = acct(&instructions[ix_idx].accounts, 1, truncate);
         instructions[ix_idx].decoded = Some(format!(
             "Token Transfer {formatted}{symbol} (dec={decimals}) \u{2192} {dest}"
         ));
@@ -448,6 +450,7 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
 fn decode_instructions(
     rpc: &dyn RpcProvider,
     vtx: &VaultTransactionAccount,
+    truncate: bool,
 ) -> Result<Vec<InstructionSummary>, MsigError> {
     let msg = &vtx.message;
     let resolved_keys = resolve_message_account_keys(rpc, msg)?;
@@ -463,7 +466,7 @@ fn decode_instructions(
                 .map(|meta| meta.pubkey)
                 .unwrap_or_default();
 
-            let program_name = identify_program(&program_id);
+            let program_name = identify_program(&program_id, truncate);
 
             let accounts: Vec<AccountRef> = ix
                 .account_indexes
@@ -486,7 +489,8 @@ fn decode_instructions(
                 .collect();
 
             let data_hex = hex_encode(&ix.data);
-            let decoded = try_decode_instruction(&program_id, &ix.data, &accounts, num_keys);
+            let decoded =
+                try_decode_instruction(&program_id, &ix.data, &accounts, num_keys, truncate);
 
             InstructionSummary {
                 program_id,
@@ -572,11 +576,11 @@ fn resolve_message_account_keys(
     Ok(keys)
 }
 
-/// Get a short address string from the accounts list by index, or "?" if missing.
-fn acct(accounts: &[AccountRef], idx: usize) -> String {
+/// Get an address string from the accounts list by index, or "?" if missing.
+fn acct(accounts: &[AccountRef], idx: usize, truncate: bool) -> String {
     accounts
         .get(idx)
-        .map(|a| abbreviate_addr(&a.address.to_string()))
+        .map(|a| format_addr(&a.address.to_string(), truncate))
         .unwrap_or_else(|| "?".to_string())
 }
 
@@ -625,7 +629,11 @@ fn read_option_pubkey(data: &[u8], off: usize) -> Option<(Option<Pubkey>, usize)
 }
 
 /// Decode a System Program instruction.
-fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<String> {
+fn decode_system_instruction(
+    data: &[u8],
+    accounts: &[AccountRef],
+    truncate: bool,
+) -> Option<String> {
     let disc = read_u32(data, 0)?;
     match disc {
         0 => {
@@ -633,29 +641,32 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
             let lamports = read_u64(data, 4)?;
             let space = read_u64(data, 12)?;
             let owner = read_pubkey(data, 20)
-                .map(|p| abbreviate_addr(&p.to_string()))
+                .map(|p| format_addr(&p.to_string(), truncate))
                 .unwrap_or_default();
             let sol = format_sol(lamports);
             Some(format!(
                 "CreateAccount {sol} SOL, space={space}, owner={owner}, new={}",
-                acct(accounts, 1)
+                acct(accounts, 1, truncate)
             ))
         }
         1 => {
             // Assign: owner(Pubkey)
             let owner = read_pubkey(data, 4)
-                .map(|p| abbreviate_addr(&p.to_string()))
+                .map(|p| format_addr(&p.to_string(), truncate))
                 .unwrap_or_default();
             Some(format!(
                 "Assign account={} owner={owner}",
-                acct(accounts, 0)
+                acct(accounts, 0, truncate)
             ))
         }
         2 => {
             // Transfer: lamports(u64)
             let lamports = read_u64(data, 4)?;
             let sol = format_sol(lamports);
-            Some(format!("Transfer {sol} SOL \u{2192} {}", acct(accounts, 1)))
+            Some(format!(
+                "Transfer {sol} SOL \u{2192} {}",
+                acct(accounts, 1, truncate)
+            ))
         }
         3 => {
             // CreateAccountWithSeed — show name + lamports
@@ -669,27 +680,30 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
                 Some("CreateAccountWithSeed".to_string())
             }
         }
-        4 => Some(format!("AdvanceNonceAccount nonce={}", acct(accounts, 0))),
+        4 => Some(format!(
+            "AdvanceNonceAccount nonce={}",
+            acct(accounts, 0, truncate)
+        )),
         5 => {
             // WithdrawNonceAccount: lamports(u64)
             let lamports = read_u64(data, 4)?;
             let sol = crate::output::format_sol(lamports);
             Some(format!(
                 "WithdrawNonceAccount {sol} SOL to={}",
-                acct(accounts, 1)
+                acct(accounts, 1, truncate)
             ))
         }
         6 => {
             // InitializeNonceAccount: authority(Pubkey)
             let auth = read_pubkey(data, 4)
-                .map(|p| abbreviate_addr(&p.to_string()))
+                .map(|p| format_addr(&p.to_string(), truncate))
                 .unwrap_or_default();
             Some(format!("InitializeNonceAccount authority={auth}"))
         }
         7 => {
             // AuthorizeNonceAccount: new_authority(Pubkey)
             let auth = read_pubkey(data, 4)
-                .map(|p| abbreviate_addr(&p.to_string()))
+                .map(|p| format_addr(&p.to_string(), truncate))
                 .unwrap_or_default();
             Some(format!("AuthorizeNonceAccount new_authority={auth}"))
         }
@@ -698,7 +712,7 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
             let space = read_u64(data, 4)?;
             Some(format!(
                 "Allocate space={space}, account={}",
-                acct(accounts, 0)
+                acct(accounts, 0, truncate)
             ))
         }
         9 => Some("AllocateWithSeed".to_string()),
@@ -715,14 +729,18 @@ fn decode_system_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Str
 }
 
 /// Decode an SPL Token Program instruction.
-fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<String> {
+fn decode_token_instruction(
+    data: &[u8],
+    accounts: &[AccountRef],
+    truncate: bool,
+) -> Option<String> {
     let disc = *data.first()?;
     match disc {
         0 => {
             // InitializeMint: decimals(u8) + mint_authority(Pubkey) + freeze_authority_option
             let decimals = data.get(1).copied().unwrap_or(0);
             let auth = read_pubkey(data, 2)
-                .map(|p| abbreviate_addr(&p.to_string()))
+                .map(|p| format_addr(&p.to_string(), truncate))
                 .unwrap_or_default();
             Some(format!(
                 "InitializeMint decimals={decimals}, authority={auth}"
@@ -730,8 +748,8 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
         }
         1 => Some(format!(
             "InitializeAccount mint={}, owner={}",
-            acct(accounts, 1),
-            acct(accounts, 2)
+            acct(accounts, 1, truncate),
+            acct(accounts, 2, truncate)
         )),
         2 => {
             let m = data.get(1).copied().unwrap_or(0);
@@ -742,7 +760,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
             let amount = read_u64(data, 1)?;
             Some(format!(
                 "Token Transfer {amount} (raw) \u{2192} {}",
-                acct(accounts, 1)
+                acct(accounts, 1, truncate)
             ))
         }
         4 => {
@@ -750,14 +768,14 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
             let amount = read_u64(data, 1)?;
             Some(format!(
                 "Approve {amount} (raw) delegate={}, authority={}",
-                acct(accounts, 1),
-                acct(accounts, 2)
+                acct(accounts, 1, truncate),
+                acct(accounts, 2, truncate)
             ))
         }
         5 => Some(format!(
             "Revoke source={}, authority={}",
-            acct(accounts, 0),
-            acct(accounts, 1)
+            acct(accounts, 0, truncate),
+            acct(accounts, 1, truncate)
         )),
         6 => {
             // SetAuthority: authority_type(u8) + new_authority_option(u8 + Pubkey?)
@@ -770,7 +788,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
                 _ => "Unknown",
             };
             let new_auth = read_option_pubkey(data, 2)
-                .and_then(|(opt_pk, _)| opt_pk.map(|p| abbreviate_addr(&p.to_string())));
+                .and_then(|(opt_pk, _)| opt_pk.map(|p| format_addr(&p.to_string(), truncate)));
             match new_auth {
                 Some(addr) => Some(format!("SetAuthority type={type_name}, new={addr}")),
                 None => Some(format!("SetAuthority type={type_name}, new=None")),
@@ -778,20 +796,32 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
         }
         7 => {
             let amount = read_u64(data, 1)?;
-            Some(format!("MintTo {amount} (raw) dest={}", acct(accounts, 1)))
+            Some(format!(
+                "MintTo {amount} (raw) dest={}",
+                acct(accounts, 1, truncate)
+            ))
         }
         8 => {
             let amount = read_u64(data, 1)?;
-            Some(format!("Burn {amount} (raw) source={}", acct(accounts, 0)))
+            Some(format!(
+                "Burn {amount} (raw) source={}",
+                acct(accounts, 0, truncate)
+            ))
         }
         9 => Some(format!(
             "CloseAccount account={}, dest={}, authority={}",
-            acct(accounts, 0),
-            acct(accounts, 1),
-            acct(accounts, 2)
+            acct(accounts, 0, truncate),
+            acct(accounts, 1, truncate),
+            acct(accounts, 2, truncate)
         )),
-        10 => Some(format!("FreezeAccount account={}", acct(accounts, 0))),
-        11 => Some(format!("ThawAccount account={}", acct(accounts, 0))),
+        10 => Some(format!(
+            "FreezeAccount account={}",
+            acct(accounts, 0, truncate)
+        )),
+        11 => Some(format!(
+            "ThawAccount account={}",
+            acct(accounts, 0, truncate)
+        )),
         12 => {
             // TransferChecked: amount(u64) + decimals(u8)
             let amount = read_u64(data, 1)?;
@@ -799,9 +829,9 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
             let formatted = format_token_amount(amount, decimals);
             Some(format!(
                 "TransferChecked {formatted} (dec={decimals}) src={}, mint={}, dest={}",
-                acct(accounts, 0),
-                acct(accounts, 1),
-                acct(accounts, 2)
+                acct(accounts, 0, truncate),
+                acct(accounts, 1, truncate),
+                acct(accounts, 2, truncate)
             ))
         }
         13 => {
@@ -818,7 +848,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
             let formatted = format_token_amount(amount, decimals);
             Some(format!(
                 "MintToChecked {formatted} (dec={decimals}) dest={}",
-                acct(accounts, 1)
+                acct(accounts, 1, truncate)
             ))
         }
         15 => {
@@ -828,13 +858,13 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
             let formatted = format_token_amount(amount, decimals);
             Some(format!(
                 "BurnChecked {formatted} (dec={decimals}) source={}",
-                acct(accounts, 0)
+                acct(accounts, 0, truncate)
             ))
         }
         16 => {
             // InitializeAccount2: owner(Pubkey)
             let owner = read_pubkey(data, 1)
-                .map(|p| abbreviate_addr(&p.to_string()))
+                .map(|p| format_addr(&p.to_string(), truncate))
                 .unwrap_or_default();
             Some(format!("InitializeAccount2 owner={owner}"))
         }
@@ -842,7 +872,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
         18 => {
             // InitializeAccount3: owner(Pubkey)
             let owner = read_pubkey(data, 1)
-                .map(|p| abbreviate_addr(&p.to_string()))
+                .map(|p| format_addr(&p.to_string(), truncate))
                 .unwrap_or_default();
             Some(format!("InitializeAccount3 owner={owner}"))
         }
@@ -854,7 +884,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
             // InitializeMint2: decimals(u8) + mint_authority(Pubkey) + freeze_authority_option
             let decimals = data.get(1).copied().unwrap_or(0);
             let auth = read_pubkey(data, 2)
-                .map(|p| abbreviate_addr(&p.to_string()))
+                .map(|p| format_addr(&p.to_string(), truncate))
                 .unwrap_or_default();
             Some(format!(
                 "InitializeMint2 decimals={decimals}, authority={auth}"
@@ -863,7 +893,7 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
         25 => {
             // InitializeMintCloseAuthority: close_authority_option(u8 + Pubkey?)
             let close_auth = read_option_pubkey(data, 1)
-                .and_then(|(opt_pk, _)| opt_pk.map(|p| abbreviate_addr(&p.to_string())));
+                .and_then(|(opt_pk, _)| opt_pk.map(|p| format_addr(&p.to_string(), truncate)));
             match close_auth {
                 Some(addr) => Some(format!("InitializeMintCloseAuthority authority={addr}")),
                 None => Some("InitializeMintCloseAuthority authority=None".to_string()),
@@ -874,7 +904,11 @@ fn decode_token_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<Stri
 }
 
 /// Decode a BPF Upgradeable Loader instruction.
-fn decode_bpf_loader_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<String> {
+fn decode_bpf_loader_instruction(
+    data: &[u8],
+    accounts: &[AccountRef],
+    truncate: bool,
+) -> Option<String> {
     let disc = read_u32(data, 0)?;
     match disc {
         0 => Some("InitializeBuffer".to_string()),
@@ -889,41 +923,44 @@ fn decode_bpf_loader_instruction(data: &[u8], accounts: &[AccountRef]) -> Option
         }
         3 => Some(format!(
             "Upgrade program={}, buffer={}",
-            acct(accounts, 1),
-            acct(accounts, 2)
+            acct(accounts, 1, truncate),
+            acct(accounts, 2, truncate)
         )),
-        4 => Some(format!("SetAuthority account={}", acct(accounts, 0))),
+        4 => Some(format!(
+            "SetAuthority account={}",
+            acct(accounts, 0, truncate)
+        )),
         5 => Some(format!(
             "Close account={}, recipient={}",
-            acct(accounts, 0),
-            acct(accounts, 1)
+            acct(accounts, 0, truncate),
+            acct(accounts, 1, truncate)
         )),
         _ => None,
     }
 }
 
 /// Decode an Associated Token Account Program instruction.
-fn decode_ata_instruction(data: &[u8], accounts: &[AccountRef]) -> Option<String> {
+fn decode_ata_instruction(data: &[u8], accounts: &[AccountRef], truncate: bool) -> Option<String> {
     // ATA program: empty data or disc 0 = Create, disc 1 = CreateIdempotent
     if data.is_empty() {
         return Some(format!(
             "CreateATA wallet={}, mint={}",
-            acct(accounts, 1),
-            acct(accounts, 3)
+            acct(accounts, 1, truncate),
+            acct(accounts, 3, truncate)
         ));
     }
     let disc = data[0];
     if disc == 0 {
         Some(format!(
             "CreateATA wallet={}, mint={}",
-            acct(accounts, 1),
-            acct(accounts, 3)
+            acct(accounts, 1, truncate),
+            acct(accounts, 3, truncate)
         ))
     } else if disc == 1 {
         Some(format!(
             "CreateIdempotentATA wallet={}, mint={}",
-            acct(accounts, 1),
-            acct(accounts, 3)
+            acct(accounts, 1, truncate),
+            acct(accounts, 3, truncate)
         ))
     } else {
         None
@@ -952,16 +989,21 @@ fn try_decode_instruction(
     data: &[u8],
     accounts: &[AccountRef],
     _num_keys: usize,
+    truncate: bool,
 ) -> Option<String> {
     let prog = program_id.to_string();
     match prog.as_str() {
-        "11111111111111111111111111111111" => decode_system_instruction(data, accounts),
+        "11111111111111111111111111111111" => decode_system_instruction(data, accounts, truncate),
         "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        | "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" => decode_token_instruction(data, accounts),
-        "BPFLoaderUpgradeab1e11111111111111111111111" => {
-            decode_bpf_loader_instruction(data, accounts)
+        | "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" => {
+            decode_token_instruction(data, accounts, truncate)
         }
-        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" => decode_ata_instruction(data, accounts),
+        "BPFLoaderUpgradeab1e11111111111111111111111" => {
+            decode_bpf_loader_instruction(data, accounts, truncate)
+        }
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" => {
+            decode_ata_instruction(data, accounts, truncate)
+        }
         "ComputeBudget111111111111111111111111111111" => {
             decode_compute_budget_instruction(data, accounts)
         }
@@ -969,7 +1011,7 @@ fn try_decode_instruction(
     }
 }
 
-fn identify_program(program_id: &Pubkey) -> String {
+fn identify_program(program_id: &Pubkey, truncate: bool) -> String {
     let s = program_id.to_string();
     match s.as_str() {
         "11111111111111111111111111111111" => "System".to_string(),
@@ -979,13 +1021,7 @@ fn identify_program(program_id: &Pubkey) -> String {
         "BPFLoaderUpgradeab1e11111111111111111111111" => "BPFLoader".to_string(),
         "ComputeBudget111111111111111111111111111111" => "ComputeBudget".to_string(),
         "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf" => "SquadsV4".to_string(),
-        _ => {
-            if s.len() > 8 {
-                format!("{}...{}", &s[..4], &s[s.len() - 4..])
-            } else {
-                s
-            }
-        }
+        _ => format_addr(&s, truncate),
     }
 }
 

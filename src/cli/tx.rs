@@ -59,7 +59,13 @@ fn cmd_show(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Msig
         .parse()
         .map_err(|_| MsigError::Usage(format!("invalid multisig address: '{resolved}'")))?;
 
-    let detail = inspect::get_proposal_detail(&rpc, &multisig_pubkey, index, &cfg.program_id)?;
+    let detail = inspect::get_proposal_detail(
+        &rpc,
+        &multisig_pubkey,
+        index,
+        &cfg.program_id,
+        cfg.truncate_addresses,
+    )?;
 
     match output_mode {
         OutputMode::Json => json::print_json(&detail),

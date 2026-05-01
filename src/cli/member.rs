@@ -59,6 +59,7 @@ fn cmd_list(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Msig
                         crate::infra::config::labels::format_address(
                             &m.key.to_string(),
                             &cfg.labels,
+                            cfg.truncate_addresses,
                         ),
                         table::format_permissions(m.permissions.0),
                     ]

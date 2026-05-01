@@ -29,6 +29,7 @@ pub struct GlobalOpts {
     pub no_color: bool,
     pub dry_run: bool,
     pub program_id: Option<String>,
+    pub full_addresses: bool,
 }
 
 impl GlobalOpts {
@@ -41,6 +42,11 @@ impl GlobalOpts {
             vault_index: self.vault_index,
             priority_fee: self.priority_fee,
             program_id: self.program_id.clone(),
+            truncate_addresses: if self.full_addresses {
+                Some(false)
+            } else {
+                None
+            },
         }
     }
 }
@@ -250,6 +256,7 @@ fn preparse_global_opts(args: Vec<String>) -> Result<(GlobalOpts, Vec<String>), 
                 "yes" => globals.yes = true,
                 "no-color" => globals.no_color = true,
                 "dry-run" => globals.dry_run = true,
+                "full-addresses" => globals.full_addresses = true,
                 _ => remaining.push(arg.clone()),
             }
             idx += 1;
@@ -328,6 +335,7 @@ pub fn run() -> Result<(), MsigError> {
             }
             Ok(Some(Long("no-color"))) => globals.no_color = true,
             Ok(Some(Long("dry-run"))) => globals.dry_run = true,
+            Ok(Some(Long("full-addresses"))) => globals.full_addresses = true,
             Ok(Some(Long("program-id"))) => {
                 globals.program_id = Some(parse_value(&mut parser, "--program-id")?)
             }
@@ -443,6 +451,27 @@ mod tests {
     fn validates_commitment() {
         let (globals, _) = parse(&["proposal", "list", "--commitment", "rooted"]);
         assert!(validate_global_opts(&globals).is_err());
+    }
+
+    #[test]
+    fn preparses_full_addresses_flag() {
+        let (globals, remaining) = parse(&["proposal", "list", "--full-addresses"]);
+        assert!(globals.full_addresses);
+        assert_eq!(remaining, vec!["proposal", "list"]);
+    }
+
+    #[test]
+    fn full_addresses_flag_maps_to_truncate_false() {
+        let (globals, _) = parse(&["proposal", "list", "--full-addresses"]);
+        let flags = globals.to_global_flags();
+        assert_eq!(flags.truncate_addresses, Some(false));
+    }
+
+    #[test]
+    fn unset_full_addresses_does_not_override_config() {
+        let (globals, _) = parse(&["proposal", "list"]);
+        let flags = globals.to_global_flags();
+        assert_eq!(flags.truncate_addresses, None);
     }
 
     #[test]
