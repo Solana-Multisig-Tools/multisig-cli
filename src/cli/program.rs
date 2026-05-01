@@ -17,12 +17,14 @@ fn cmd_upgrade(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), M
     let mut program_addr: Option<String> = None;
     let mut buffer_addr: Option<String> = None;
     let mut spill_addr: Option<String> = None;
+    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
             Long("program") => program_addr = Some(parse_value(parser, "--program")?),
             Long("buffer") => buffer_addr = Some(parse_value(parser, "--buffer")?),
             Long("spill") => spill_addr = Some(parse_value(parser, "--spill")?),
+            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("program");
                 return Ok(());
@@ -47,6 +49,7 @@ fn cmd_upgrade(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), M
         &buffer_addr,
         &spill_addr,
         vault_index,
+        memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,

@@ -49,9 +49,11 @@ fn cmd_reclaim(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), M
 fn cmd_set_collector(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigError> {
     use lexopt::Arg::*;
     let mut addr: Option<String> = None;
+    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
+            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("rent");
                 return Ok(());
@@ -79,6 +81,7 @@ fn cmd_set_collector(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result
         ctx.signer.as_ref(),
         &multisig,
         Some(&addr_str),
+        memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,

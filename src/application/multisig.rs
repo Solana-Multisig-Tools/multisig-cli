@@ -65,7 +65,8 @@ pub(crate) fn build_multisig_create_v2_instruction(
     threshold: u16,
     members: &[Pubkey],
     rent_collector: Option<Pubkey>,
-) -> Instruction {
+    memo: Option<&str>,
+) -> Result<Instruction, MsigError> {
     let mut data = Vec::new();
     data.extend_from_slice(&MULTISIG_CREATE_V2_DISC);
     data.push(0x00);
@@ -83,9 +84,9 @@ pub(crate) fn build_multisig_create_v2_instruction(
         }
         None => data.push(0x00),
     }
-    data.push(0x00);
+    crate::infra::instruction::borsh_write_option_string(&mut data, memo)?;
 
-    Instruction {
+    Ok(Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new_readonly(program_config, false),
@@ -96,7 +97,7 @@ pub(crate) fn build_multisig_create_v2_instruction(
             AccountMeta::new_readonly(SYSTEM_PROGRAM, false),
         ],
         data,
-    }
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -106,6 +107,7 @@ pub fn create_multisig(
     threshold: u16,
     members: &[String],
     rent_collector: Option<&str>,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -116,6 +118,7 @@ pub fn create_multisig(
         threshold,
         members,
         rent_collector,
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -130,6 +133,7 @@ pub fn create_multisig_quiet(
     threshold: u16,
     members: &[String],
     rent_collector: Option<&str>,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -140,6 +144,7 @@ pub fn create_multisig_quiet(
         threshold,
         members,
         rent_collector,
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -154,6 +159,7 @@ fn create_multisig_inner(
     threshold: u16,
     members: &[String],
     rent_collector: Option<&str>,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -198,7 +204,8 @@ fn create_multisig_inner(
         threshold,
         &member_pubkeys,
         rent_collector_pubkey,
-    );
+        memo,
+    )?;
     let prepared = PreparedTransaction {
         instructions: vec![instruction],
         description: format!(
@@ -240,4 +247,98 @@ pub struct MultisigCreateResult {
     pub signature: Option<String>,
     pub multisig_address: String,
     pub create_key: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infra::instruction::assert_memo_replaces_none_tail;
+
+    #[test]
+    fn multisig_create_v2_encodes_some_memo_at_tail() {
+        let program_id = Pubkey::new_from_array([1u8; 32]);
+        let program_config = Pubkey::new_from_array([2u8; 32]);
+        let treasury = Pubkey::new_from_array([3u8; 32]);
+        let multisig = Pubkey::new_from_array([4u8; 32]);
+        let create_key = Pubkey::new_from_array([5u8; 32]);
+        let creator = Pubkey::new_from_array([6u8; 32]);
+        let members = vec![
+            Pubkey::new_from_array([7u8; 32]),
+            Pubkey::new_from_array([8u8; 32]),
+        ];
+        let memo = "treasury multisig — formed 2026-05-01";
+
+        let none = build_multisig_create_v2_instruction(
+            program_id,
+            program_config,
+            treasury,
+            multisig,
+            create_key,
+            creator,
+            2,
+            &members,
+            None,
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let some = build_multisig_create_v2_instruction(
+            program_id,
+            program_config,
+            treasury,
+            multisig,
+            create_key,
+            creator,
+            2,
+            &members,
+            None,
+            Some(memo),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+
+        assert_memo_replaces_none_tail(&none.data, &some.data, memo);
+    }
+
+    /// `multisigCreateV2` already carries its own inner `Option<Pubkey>` for
+    /// `rent_collector`. Confirm the trailing memo is independent.
+    #[test]
+    fn multisig_create_v2_with_rent_collector_memo_round_trips() {
+        let program_id = Pubkey::new_from_array([1u8; 32]);
+        let program_config = Pubkey::new_from_array([2u8; 32]);
+        let treasury = Pubkey::new_from_array([3u8; 32]);
+        let multisig = Pubkey::new_from_array([4u8; 32]);
+        let create_key = Pubkey::new_from_array([5u8; 32]);
+        let creator = Pubkey::new_from_array([6u8; 32]);
+        let members = vec![Pubkey::new_from_array([7u8; 32])];
+        let rc = Some(Pubkey::new_from_array([9u8; 32]));
+        let memo = "with rent collector";
+
+        let none = build_multisig_create_v2_instruction(
+            program_id,
+            program_config,
+            treasury,
+            multisig,
+            create_key,
+            creator,
+            1,
+            &members,
+            rc,
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let some = build_multisig_create_v2_instruction(
+            program_id,
+            program_config,
+            treasury,
+            multisig,
+            create_key,
+            creator,
+            1,
+            &members,
+            rc,
+            Some(memo),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+
+        assert_memo_replaces_none_tail(&none.data, &some.data, memo);
+    }
 }

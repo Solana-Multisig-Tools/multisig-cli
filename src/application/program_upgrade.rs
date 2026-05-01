@@ -57,16 +57,17 @@ pub(crate) fn build_program_upgrade_vault_transaction_create_instruction(
     creator: Pubkey,
     vault_index: u8,
     transaction_message: &[u8],
-) -> Instruction {
+    memo: Option<&str>,
+) -> Result<Instruction, MsigError> {
     let mut data = Vec::new();
     data.extend_from_slice(&VAULT_TX_CREATE_DISC);
     data.push(vault_index);
     data.push(0u8);
     data.extend_from_slice(&(transaction_message.len() as u32).to_le_bytes());
     data.extend_from_slice(transaction_message);
-    data.push(0x00);
+    crate::infra::instruction::borsh_write_option_string(&mut data, memo)?;
 
-    Instruction {
+    Ok(Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new(multisig, false),
@@ -76,7 +77,7 @@ pub(crate) fn build_program_upgrade_vault_transaction_create_instruction(
             AccountMeta::new_readonly(SYSTEM_PROGRAM, false),
         ],
         data,
-    }
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -88,6 +89,7 @@ pub fn create_program_upgrade_proposal(
     buffer_addr: &str,
     spill_addr: &str,
     vault_index: u8,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -145,7 +147,8 @@ pub fn create_program_upgrade_proposal(
         creator,
         vault_index,
         &inner_msg,
-    ));
+        memo,
+    )?);
 
     instructions.push(build_proposal_create_instruction(
         squads_program_id,
@@ -181,4 +184,37 @@ pub fn create_program_upgrade_proposal(
         );
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infra::instruction::assert_memo_replaces_none_tail;
+
+    #[test]
+    fn program_upgrade_vault_transaction_create_encodes_some_memo_at_tail() {
+        let program_id = Pubkey::new_from_array([1u8; 32]);
+        let multisig = Pubkey::new_from_array([2u8; 32]);
+        let transaction = Pubkey::new_from_array([3u8; 32]);
+        let creator = Pubkey::new_from_array([4u8; 32]);
+        let inner_msg = vec![0u8; 32]; // dummy inner program-upgrade message
+        let memo = "upgrade core program to v1.4.0";
+
+        let none = build_program_upgrade_vault_transaction_create_instruction(
+            program_id, multisig, transaction, creator, 0, &inner_msg, None,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let some = build_program_upgrade_vault_transaction_create_instruction(
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            0,
+            &inner_msg,
+            Some(memo),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+
+        assert_memo_replaces_none_tail(&none.data, &some.data, memo);
+    }
 }

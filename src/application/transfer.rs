@@ -32,16 +32,17 @@ pub(crate) fn build_vault_transaction_create_instruction(
     creator: Pubkey,
     vault_index: u8,
     transaction_message: &[u8],
-) -> Instruction {
+    memo: Option<&str>,
+) -> Result<Instruction, MsigError> {
     let mut data = Vec::new();
     data.extend_from_slice(&VAULT_TX_CREATE_DISC);
     data.push(vault_index);
     data.push(0u8);
     data.extend_from_slice(&(transaction_message.len() as u32).to_le_bytes());
     data.extend_from_slice(transaction_message);
-    data.push(0x00);
+    crate::infra::instruction::borsh_write_option_string(&mut data, memo)?;
 
-    Instruction {
+    Ok(Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new(multisig, false),
@@ -51,7 +52,7 @@ pub(crate) fn build_vault_transaction_create_instruction(
             AccountMeta::new_readonly(SYSTEM_PROGRAM, false),
         ],
         data,
-    }
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -63,6 +64,7 @@ pub fn create_transfer_proposal(
     token_mint: &str,
     recipient: &str,
     vault_index: u8,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -75,6 +77,7 @@ pub fn create_transfer_proposal(
         token_mint,
         recipient,
         vault_index,
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -91,6 +94,7 @@ pub fn create_transfer_proposal_quiet(
     token_mint: &str,
     recipient: &str,
     vault_index: u8,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -103,6 +107,7 @@ pub fn create_transfer_proposal_quiet(
         token_mint,
         recipient,
         vault_index,
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -119,6 +124,7 @@ fn create_transfer_proposal_inner(
     token_mint: &str,
     recipient: &str,
     vault_index: u8,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -227,7 +233,8 @@ fn create_transfer_proposal_inner(
         creator,
         vault_index,
         &inner_msg,
-    ));
+        memo,
+    )?);
 
     instructions.push(build_proposal_create_instruction(
         program_id,
@@ -333,5 +340,41 @@ fn resolve_token_program(rpc: &dyn RpcProvider, mint: &Pubkey) -> Result<Pubkey,
         owner => Err(MsigError::Transaction(format!(
             "mint {mint} is owned by {owner}, not the SPL Token or Token-2022 program"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infra::instruction::assert_memo_replaces_none_tail;
+
+    /// `transfer.rs` carries its own `build_vault_transaction_create_instruction`
+    /// duplicate of the one in `vault_tx.rs`. Cover it independently so the
+    /// memo plumbing can't drift between the two.
+    #[test]
+    fn transfer_vault_transaction_create_encodes_some_memo_at_tail() {
+        let program_id = Pubkey::new_from_array([1u8; 32]);
+        let multisig = Pubkey::new_from_array([2u8; 32]);
+        let transaction = Pubkey::new_from_array([3u8; 32]);
+        let creator = Pubkey::new_from_array([4u8; 32]);
+        let message = vec![0u8; 16];
+        let memo = "send 1 SOL to ops vault";
+
+        let none = build_vault_transaction_create_instruction(
+            program_id, multisig, transaction, creator, 0, &message, None,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let some = build_vault_transaction_create_instruction(
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            0,
+            &message,
+            Some(memo),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+
+        assert_memo_replaces_none_tail(&none.data, &some.data, memo);
     }
 }

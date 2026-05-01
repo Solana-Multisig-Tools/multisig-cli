@@ -1,4 +1,4 @@
-use super::{build_context, next_verb, GlobalOpts};
+use super::{build_context, next_verb, parse_value, GlobalOpts};
 use crate::application::transfer;
 use crate::error::{MsigError, OutputMode};
 use crate::infra::config::tokens;
@@ -18,9 +18,11 @@ fn cmd_sol(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
     use lexopt::Arg::*;
     let mut amount_str: Option<String> = None;
     let mut recipient: Option<String> = None;
+    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
+            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("transfer");
                 return Ok(());
@@ -60,6 +62,7 @@ fn cmd_sol(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
             "native",
             &recipient,
             vault_index,
+            memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,
@@ -73,6 +76,7 @@ fn cmd_sol(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
             "native",
             &recipient,
             vault_index,
+            memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,
@@ -97,9 +101,11 @@ fn cmd_spl(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
     let mut token: Option<String> = None;
     let mut amount_str: Option<String> = None;
     let mut recipient: Option<String> = None;
+    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
+            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("transfer");
                 return Ok(());
@@ -150,6 +156,7 @@ fn cmd_spl(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
             &token_info.mint,
             &recipient,
             vault_index,
+            memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,
@@ -163,6 +170,7 @@ fn cmd_spl(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
             &token_info.mint,
             &recipient,
             vault_index,
+            memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,

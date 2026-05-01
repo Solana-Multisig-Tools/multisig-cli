@@ -142,6 +142,7 @@ fn cmd_run(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
     let mut template_path: Option<String> = None;
     let mut raw_inputs = template::RawTemplateInputs::new();
     let mut description_override: Option<String> = None;
+    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
@@ -159,6 +160,7 @@ fn cmd_run(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
             Long("description") => {
                 description_override = Some(parse_value(parser, "--description")?);
             }
+            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("template");
                 return Ok(());
@@ -212,6 +214,7 @@ fn cmd_run(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
         compiled.instructions.clone(),
         vault_index,
         description,
+        memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
