@@ -7,6 +7,11 @@
 //! produce v4 instructions byte-for-byte identical to those produced by this
 //! CLI without copying the implementation.
 //!
+//! In addition to instruction builders, this module re-exports
+//! [`Multisig`] and its [`Multisig::parse`] constructor so that
+//! a client can fetch the raw on-chain account data via its own RPC provider
+//! and deserialize the bytes into the canonical typed account struct.
+//!
 //! Add the dependency with default features off to keep the Ledger transport
 //! and the rest of the CLI-only surface out of your build:
 //!
@@ -34,7 +39,18 @@ pub use crate::{
             VaultTxInfo,
         },
     },
-    infra::accounts::vault_tx::TransactionMessage as VaultTransactionMessage,
+    error::ParseError,
+    infra::{
+        accounts::{
+            multisig::MultisigAccount as Multisig,
+            vault_tx::TransactionMessage as VaultTransactionMessage,
+        },
+        pda::{
+            batch_transaction_pda, ephemeral_signer_pda, multisig_pda, program_config_pda,
+            proposal_pda, spending_limit_pda, transaction_buffer_pda, transaction_pda, vault_pda,
+            PROGRAM_ID,
+        },
+    },
 };
 
 /// Build the `proposalVote` instruction for a member casting `vote` on `proposal`.
@@ -239,6 +255,20 @@ pub fn transaction_accounts_close(
         kind,
     )
     .into()
+}
+
+/// Anchor-v4-SDK-style alias for [`Multisig::parse`]: decode raw on-chain
+/// account bytes (e.g. from an `RpcClient::get_account(...)?.data` call) into
+/// a [`Multisig`], verifying the 8-byte account discriminator and borsh-decoding
+/// the body in one step.
+///
+/// The original v4 SDK exposes the same operation through Anchor's
+/// `AccountDeserialize::try_deserialize(&mut &[u8])` trait method. We take the
+/// slice by value because v4 is frozen and the account data has no trailing
+/// bytes for a cursor to leave behind, so callers don't need to track how much
+/// of the buffer was consumed.
+pub fn try_deserialize(data: &[u8]) -> Result<Multisig, ParseError> {
+    Multisig::parse(data)
 }
 
 /// Build the `vaultTransactionCreate` instruction with the program-upgrade
