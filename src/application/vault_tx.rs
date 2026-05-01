@@ -35,6 +35,7 @@ pub(crate) fn build_vault_transaction_create_instruction(
     creator: Pubkey,
     vault_index: u8,
     transaction_message: &[u8],
+    memo: Option<&str>,
 ) -> Result<Instruction, MsigError> {
     let message_len = u32::try_from(transaction_message.len()).map_err(|_| {
         MsigError::Transaction(format!(
@@ -49,7 +50,7 @@ pub(crate) fn build_vault_transaction_create_instruction(
     data.push(0u8);
     data.extend_from_slice(&message_len.to_le_bytes());
     data.extend_from_slice(transaction_message);
-    data.push(0x00);
+    crate::infra::instruction::borsh_write_option_string(&mut data, memo)?;
 
     Ok(Instruction {
         program_id,
@@ -72,6 +73,7 @@ pub fn create_vault_transaction_proposal(
     inner_instructions: Vec<Instruction>,
     vault_index: u8,
     description: String,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -96,6 +98,7 @@ pub fn create_vault_transaction_proposal(
         inner_instructions,
         vault_index,
         description,
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -111,6 +114,7 @@ pub fn create_vault_transaction_message_proposal(
     transaction_message: Vec<u8>,
     vault_index: u8,
     description: String,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -124,6 +128,7 @@ pub fn create_vault_transaction_message_proposal(
         vec![],
         vault_index,
         description,
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -140,6 +145,7 @@ fn create_vault_transaction_message_proposal_with_review(
     review_instructions: Vec<Instruction>,
     vault_index: u8,
     description: String,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -188,6 +194,7 @@ fn create_vault_transaction_message_proposal_with_review(
             creator,
             vault_index,
             &transaction_message,
+            memo,
         )?,
         build_proposal_create_instruction(
             program_id,
@@ -227,4 +234,43 @@ fn create_vault_transaction_message_proposal_with_review(
         transaction: transaction_pubkey,
         proposal: proposal_pubkey,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infra::instruction::assert_memo_replaces_none_tail;
+
+    #[test]
+    fn vault_transaction_create_encodes_some_memo_at_tail() {
+        let program_id = Pubkey::new_from_array([1u8; 32]);
+        let multisig = Pubkey::new_from_array([2u8; 32]);
+        let transaction = Pubkey::new_from_array([3u8; 32]);
+        let creator = Pubkey::new_from_array([4u8; 32]);
+        let message = b"\x00\x00\x00\x00\x00\x00\x00".to_vec(); // small dummy payload
+        let memo = "vault transfer to treasury";
+
+        let none = build_vault_transaction_create_instruction(
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            0,
+            &message,
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let some = build_vault_transaction_create_instruction(
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            0,
+            &message,
+            Some(memo),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+
+        assert_memo_replaces_none_tail(&none.data, &some.data, memo);
+    }
 }

@@ -7,6 +7,11 @@
 //! produce v4 instructions byte-for-byte identical to those produced by this
 //! CLI without copying the implementation.
 //!
+//! In addition to instruction builders, this module re-exports
+//! [`Multisig`] and its [`Multisig::parse`] constructor so that
+//! a client can fetch the raw on-chain account data via its own RPC provider
+//! and deserialize the bytes into the canonical typed account struct.
+//!
 //! Add the dependency with default features off to keep the Ledger transport
 //! and the rest of the CLI-only surface out of your build:
 //!
@@ -34,18 +39,34 @@ pub use crate::{
             VaultTxInfo,
         },
     },
-    infra::accounts::vault_tx::TransactionMessage as VaultTransactionMessage,
+    error::ParseError,
+    infra::{
+        accounts::{
+            multisig::MultisigAccount as Multisig,
+            vault_tx::TransactionMessage as VaultTransactionMessage,
+        },
+        pda::{
+            batch_transaction_pda, ephemeral_signer_pda, multisig_pda, program_config_pda,
+            proposal_pda, spending_limit_pda, transaction_buffer_pda, transaction_pda, vault_pda,
+            PROGRAM_ID,
+        },
+    },
 };
 
 /// Build the `proposalVote` instruction for a member casting `vote` on `proposal`.
+///
+/// `memo` is an optional UTF-8 string stored on-chain as the `ProposalVoteArgs.memo`
+/// field; pass `None` to omit it (the default for v4 SDK callers).
 pub fn vote(
     program_id: Pubkey,
     multisig: Pubkey,
     proposal: Pubkey,
     member: Pubkey,
     vote: Vote,
-) -> SolInstruction {
-    proposal::build_vote_instruction(program_id, multisig, proposal, member, vote).into()
+    memo: Option<&str>,
+) -> Result<SolInstruction, MsigError> {
+    proposal::build_vote_instruction(program_id, multisig, proposal, member, vote, memo)
+        .map(Into::into)
 }
 
 /// Build the `vaultTransactionExecute` instruction for an approved vault transaction.
@@ -123,6 +144,10 @@ pub fn serialize_vault_transaction_message(
 /// pre-serialized inner message bytes (see the v4 program's `TransactionMessage`
 /// layout); use [`serialize_vault_transaction_message`] to produce them from
 /// `solana_instruction::Instruction` values.
+///
+/// `memo` is an optional UTF-8 string stored on-chain as the
+/// `VaultTransactionCreateArgs.memo` field.
+#[allow(clippy::too_many_arguments)]
 pub fn vault_transaction_create(
     program_id: Pubkey,
     multisig: Pubkey,
@@ -130,6 +155,7 @@ pub fn vault_transaction_create(
     creator: Pubkey,
     vault_index: u8,
     transaction_message: &[u8],
+    memo: Option<&str>,
 ) -> Result<SolInstruction, MsigError> {
     vault_tx::build_vault_transaction_create_instruction(
         program_id,
@@ -138,6 +164,7 @@ pub fn vault_transaction_create(
         creator,
         vault_index,
         transaction_message,
+        memo,
     )
     .map(Into::into)
 }
@@ -174,26 +201,35 @@ pub fn proposal_activate(
 }
 
 /// Build the `configTransactionCreate` instruction.
+///
+/// `memo` is an optional UTF-8 string stored on-chain as the
+/// `ConfigTransactionCreateArgs.memo` field.
+#[allow(clippy::too_many_arguments)]
 pub fn config_transaction_create(
     program_id: Pubkey,
     multisig: Pubkey,
     transaction: Pubkey,
     creator: Pubkey,
     action: config_tx::ConfigTransactionAction,
-) -> SolInstruction {
+    memo: Option<&str>,
+) -> Result<SolInstruction, MsigError> {
     config_tx::build_config_transaction_create_instruction(
         program_id,
         multisig,
         transaction,
         creator,
         action,
+        memo,
     )
-    .into()
+    .map(Into::into)
 }
 
 /// Build the `multisigCreateV2` instruction. `program_config` and `treasury`
 /// are PDAs of the program-level config account and the on-chain treasury;
 /// resolve them from the deployed program before calling.
+///
+/// `memo` is an optional UTF-8 string stored on-chain as the
+/// `MultisigCreateArgsV2.memo` field.
 #[allow(clippy::too_many_arguments)]
 pub fn multisig_create_v2(
     program_id: Pubkey,
@@ -205,7 +241,8 @@ pub fn multisig_create_v2(
     threshold: u16,
     members: &[Pubkey],
     rent_collector: Option<Pubkey>,
-) -> SolInstruction {
+    memo: Option<&str>,
+) -> Result<SolInstruction, MsigError> {
     multisig::build_multisig_create_v2_instruction(
         program_id,
         program_config,
@@ -216,8 +253,9 @@ pub fn multisig_create_v2(
         threshold,
         members,
         rent_collector,
+        memo,
     )
-    .into()
+    .map(Into::into)
 }
 
 /// Build the `vaultTransactionAccountsClose` or `configTransactionAccountsClose`
@@ -241,8 +279,26 @@ pub fn transaction_accounts_close(
     .into()
 }
 
+/// Anchor-v4-SDK-style alias for [`Multisig::parse`]: decode raw on-chain
+/// account bytes (e.g. from an `RpcClient::get_account(...)?.data` call) into
+/// a [`Multisig`], verifying the 8-byte account discriminator and borsh-decoding
+/// the body in one step.
+///
+/// The original v4 SDK exposes the same operation through Anchor's
+/// `AccountDeserialize::try_deserialize(&mut &[u8])` trait method. We take the
+/// slice by value because v4 is frozen and the account data has no trailing
+/// bytes for a cursor to leave behind, so callers don't need to track how much
+/// of the buffer was consumed.
+pub fn try_deserialize(data: &[u8]) -> Result<Multisig, ParseError> {
+    Multisig::parse(data)
+}
+
 /// Build the `vaultTransactionCreate` instruction with the program-upgrade
 /// transaction message layout.
+///
+/// `memo` is an optional UTF-8 string stored on-chain as the
+/// `VaultTransactionCreateArgs.memo` field.
+#[allow(clippy::too_many_arguments)]
 pub fn program_upgrade_vault_transaction_create(
     program_id: Pubkey,
     multisig: Pubkey,
@@ -250,7 +306,8 @@ pub fn program_upgrade_vault_transaction_create(
     creator: Pubkey,
     vault_index: u8,
     transaction_message: &[u8],
-) -> SolInstruction {
+    memo: Option<&str>,
+) -> Result<SolInstruction, MsigError> {
     program_upgrade::build_program_upgrade_vault_transaction_create_instruction(
         program_id,
         multisig,
@@ -258,6 +315,7 @@ pub fn program_upgrade_vault_transaction_create(
         creator,
         vault_index,
         transaction_message,
+        memo,
     )
-    .into()
+    .map(Into::into)
 }

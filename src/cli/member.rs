@@ -74,10 +74,12 @@ fn cmd_add(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
     use lexopt::Arg::*;
     let mut member_addr: Option<String> = None;
     let mut permissions_str: Option<String> = None;
+    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
             Long("permissions") => permissions_str = Some(parse_value(parser, "--permissions")?),
+            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("member");
                 return Ok(());
@@ -112,6 +114,7 @@ fn cmd_add(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
         &member_addr,
         permissions,
         true,
+        memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
@@ -134,9 +137,11 @@ fn cmd_add(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
 fn cmd_remove(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigError> {
     use lexopt::Arg::*;
     let mut member_addr: Option<String> = None;
+    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
+            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("member");
                 return Ok(());
@@ -166,6 +171,7 @@ fn cmd_remove(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
         &member_addr,
         0,
         false,
+        memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,

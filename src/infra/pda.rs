@@ -119,6 +119,75 @@ pub fn spending_limit_pda(
     )
 }
 
+/// Seeds: ["multisig", "program_config"]
+pub fn program_config_pda(program_id: &Pubkey) -> (Pubkey, u8) {
+    find_program_address(
+        &[b"multisig".as_ref(), b"program_config".as_ref()],
+        program_id,
+    )
+}
+
+/// Seeds: ["multisig", multisig, "transaction_buffer", creator, &[buffer_index]]
+pub fn transaction_buffer_pda(
+    multisig: &Pubkey,
+    creator: &Pubkey,
+    buffer_index: u8,
+    program_id: &Pubkey,
+) -> (Pubkey, u8) {
+    find_program_address(
+        &[
+            b"multisig".as_ref(),
+            multisig.as_ref(),
+            b"transaction_buffer".as_ref(),
+            creator.as_ref(),
+            &[buffer_index],
+        ],
+        program_id,
+    )
+}
+
+/// Seeds: ["multisig", multisig, "transaction", &batch_index_le, "batch_transaction", &transaction_index_le]
+///
+/// `batch_index` is the on-chain `Batch.index: u64` (the parent batch's transaction-index in the multisig);
+/// `transaction_index` is the 1-based slot within the batch (`Batch.size` after the add, type `u32`).
+pub fn batch_transaction_pda(
+    multisig: &Pubkey,
+    batch_index: u64,
+    transaction_index: u32,
+    program_id: &Pubkey,
+) -> (Pubkey, u8) {
+    find_program_address(
+        &[
+            b"multisig".as_ref(),
+            multisig.as_ref(),
+            b"transaction".as_ref(),
+            &batch_index.to_le_bytes(),
+            b"batch_transaction".as_ref(),
+            &transaction_index.to_le_bytes(),
+        ],
+        program_id,
+    )
+}
+
+/// Seeds: ["multisig", transaction_key, "ephemeral_signer", &[index]]
+///
+/// `transaction_key` is the parent VaultTransaction or Batch PDA address.
+pub fn ephemeral_signer_pda(
+    transaction_key: &Pubkey,
+    index: u8,
+    program_id: &Pubkey,
+) -> (Pubkey, u8) {
+    find_program_address(
+        &[
+            b"multisig".as_ref(),
+            transaction_key.as_ref(),
+            b"ephemeral_signer".as_ref(),
+            &[index],
+        ],
+        program_id,
+    )
+}
+
 const TOKEN_PROGRAM: Pubkey = solana_pubkey::pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
 const ATA_PROGRAM: Pubkey = solana_pubkey::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
@@ -281,5 +350,42 @@ mod tests {
         let (tx, _) = transaction_pda(&multisig, 1, &PROGRAM_ID);
         let (prop, _) = proposal_pda(&multisig, 1, &PROGRAM_ID);
         assert_ne!(tx, prop);
+    }
+
+    #[test]
+    fn program_config_pda_is_deterministic() {
+        let (a, _) = program_config_pda(&PROGRAM_ID);
+        let (b, _) = program_config_pda(&PROGRAM_ID);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn transaction_buffer_pda_varies_by_inputs() {
+        let multisig = Pubkey::new_unique();
+        let creator_a = Pubkey::new_unique();
+        let creator_b = Pubkey::new_unique();
+        let (a, _) = transaction_buffer_pda(&multisig, &creator_a, 0, &PROGRAM_ID);
+        let (b, _) = transaction_buffer_pda(&multisig, &creator_b, 0, &PROGRAM_ID);
+        let (c, _) = transaction_buffer_pda(&multisig, &creator_a, 1, &PROGRAM_ID);
+        assert_ne!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn batch_transaction_pda_varies_by_inputs() {
+        let multisig = Pubkey::new_unique();
+        let (a, _) = batch_transaction_pda(&multisig, 1, 1, &PROGRAM_ID);
+        let (b, _) = batch_transaction_pda(&multisig, 2, 1, &PROGRAM_ID);
+        let (c, _) = batch_transaction_pda(&multisig, 1, 2, &PROGRAM_ID);
+        assert_ne!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn ephemeral_signer_pda_varies_by_index() {
+        let tx = Pubkey::new_unique();
+        let (a, _) = ephemeral_signer_pda(&tx, 0, &PROGRAM_ID);
+        let (b, _) = ephemeral_signer_pda(&tx, 1, &PROGRAM_ID);
+        assert_ne!(a, b);
     }
 }
