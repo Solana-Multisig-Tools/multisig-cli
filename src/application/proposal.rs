@@ -616,8 +616,9 @@ mod tests {
     fn vote_instruction_encodes_some_memo_at_tail() {
         let (program_id, multisig, proposal, member) = fixture_keys();
         let memo = "approve invoice 137";
-        let none = build_vote_instruction(program_id, multisig, proposal, member, Vote::Approve, None)
-            .unwrap_or_else(|e| panic!("{e}"));
+        let none =
+            build_vote_instruction(program_id, multisig, proposal, member, Vote::Approve, None)
+                .unwrap_or_else(|e| panic!("{e}"));
         let some = build_vote_instruction(
             program_id,
             multisig,
@@ -641,15 +642,9 @@ mod tests {
         for vote in [Vote::Approve, Vote::Reject, Vote::Cancel] {
             let none = build_vote_instruction(program_id, multisig, proposal, member, vote, None)
                 .unwrap_or_else(|e| panic!("{e}"));
-            let some = build_vote_instruction(
-                program_id,
-                multisig,
-                proposal,
-                member,
-                vote,
-                Some(memo),
-            )
-            .unwrap_or_else(|e| panic!("{e}"));
+            let some =
+                build_vote_instruction(program_id, multisig, proposal, member, vote, Some(memo))
+                    .unwrap_or_else(|e| panic!("{e}"));
             assert_memo_replaces_none_tail(&none.data, &some.data, memo);
         }
     }

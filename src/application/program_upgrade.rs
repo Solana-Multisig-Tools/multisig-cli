@@ -201,7 +201,13 @@ mod tests {
         let memo = "upgrade core program to v1.4.0";
 
         let none = build_program_upgrade_vault_transaction_create_instruction(
-            program_id, multisig, transaction, creator, 0, &inner_msg, None,
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            0,
+            &inner_msg,
+            None,
         )
         .unwrap_or_else(|e| panic!("{e}"));
         let some = build_program_upgrade_vault_transaction_create_instruction(

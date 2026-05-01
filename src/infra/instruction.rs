@@ -212,8 +212,7 @@ mod tests {
     fn borsh_option_string_round_trip_none() {
         let mut buf = Vec::new();
         borsh_write_option_string(&mut buf, None).unwrap_or_else(|e| panic!("{e}"));
-        let (decoded, consumed) =
-            borsh_read_option_string(&buf).unwrap_or_else(|e| panic!("{e}"));
+        let (decoded, consumed) = borsh_read_option_string(&buf).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(decoded, None);
         assert_eq!(consumed, buf.len());
     }
@@ -223,8 +222,7 @@ mod tests {
         let mut buf = Vec::new();
         borsh_write_option_string(&mut buf, Some("payment for invoice 42"))
             .unwrap_or_else(|e| panic!("{e}"));
-        let (decoded, consumed) =
-            borsh_read_option_string(&buf).unwrap_or_else(|e| panic!("{e}"));
+        let (decoded, consumed) = borsh_read_option_string(&buf).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(decoded.as_deref(), Some("payment for invoice 42"));
         assert_eq!(consumed, buf.len());
     }
@@ -234,8 +232,7 @@ mod tests {
         let mut buf = Vec::new();
         borsh_write_option_string(&mut buf, Some("héllo 🦀 wörld"))
             .unwrap_or_else(|e| panic!("{e}"));
-        let (decoded, consumed) =
-            borsh_read_option_string(&buf).unwrap_or_else(|e| panic!("{e}"));
+        let (decoded, consumed) = borsh_read_option_string(&buf).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(decoded.as_deref(), Some("héllo 🦀 wörld"));
         assert_eq!(consumed, buf.len());
     }

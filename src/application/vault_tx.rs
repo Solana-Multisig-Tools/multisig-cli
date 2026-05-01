@@ -251,7 +251,13 @@ mod tests {
         let memo = "vault transfer to treasury";
 
         let none = build_vault_transaction_create_instruction(
-            program_id, multisig, transaction, creator, 0, &message, None,
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            0,
+            &message,
+            None,
         )
         .unwrap_or_else(|e| panic!("{e}"));
         let some = build_vault_transaction_create_instruction(
