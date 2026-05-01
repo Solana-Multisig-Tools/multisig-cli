@@ -10,8 +10,8 @@ Install from a release artifact and verify its SHA-256 checksum:
 export MSIG_VERSION=v0.1.0
 export MSIG_TARGET=aarch64-apple-darwin
 
-curl -LO "https://github.com/Solana-Multisig-Tools/v4-cli/releases/download/${MSIG_VERSION}/msig-${MSIG_VERSION}-${MSIG_TARGET}"
-curl -LO "https://github.com/Solana-Multisig-Tools/v4-cli/releases/download/${MSIG_VERSION}/msig-${MSIG_VERSION}-${MSIG_TARGET}.sha256"
+curl -LO "https://github.com/Solana-Multisig-Tools/multisig-cli/releases/download/${MSIG_VERSION}/msig-${MSIG_VERSION}-${MSIG_TARGET}"
+curl -LO "https://github.com/Solana-Multisig-Tools/multisig-cli/releases/download/${MSIG_VERSION}/msig-${MSIG_VERSION}-${MSIG_TARGET}.sha256"
 shasum -a 256 -c "msig-${MSIG_VERSION}-${MSIG_TARGET}.sha256"
 chmod +x "msig-${MSIG_VERSION}-${MSIG_TARGET}"
 sudo install -m 0755 "msig-${MSIG_VERSION}-${MSIG_TARGET}" /usr/local/bin/msig
@@ -23,8 +23,8 @@ Set `MSIG_TARGET` to the artifact for your machine: `aarch64-apple-darwin`, `x86
 Or install from source with locked dependencies:
 
 ```sh
-git clone https://github.com/Solana-Multisig-Tools/v4-cli.git
-cd v4-cli
+git clone https://github.com/Solana-Multisig-Tools/multisig-cli.git
+cd multisig-cli
 cargo install --path . --locked
 msig --version
 ```
