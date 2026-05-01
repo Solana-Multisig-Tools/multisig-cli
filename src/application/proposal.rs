@@ -81,12 +81,13 @@ pub(crate) fn build_vote_instruction(
     proposal: Pubkey,
     member: Pubkey,
     vote: Vote,
-) -> Instruction {
-    let mut data = Vec::with_capacity(9);
+    memo: Option<&str>,
+) -> Result<Instruction, MsigError> {
+    let mut data = Vec::with_capacity(9 + memo.map_or(0, |m| m.len() + 4));
     data.extend_from_slice(&vote.discriminator());
-    data.push(0x00);
+    crate::infra::instruction::borsh_write_option_string(&mut data, memo)?;
 
-    Instruction {
+    Ok(Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new_readonly(multisig, false),
@@ -94,7 +95,7 @@ pub(crate) fn build_vote_instruction(
             AccountMeta::new(proposal, false),
         ],
         data,
-    }
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -356,6 +357,7 @@ pub fn create_vote_proposal(
     multisig_addr: &Pubkey,
     index: u64,
     vote: Vote,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -366,6 +368,7 @@ pub fn create_vote_proposal(
         multisig_addr,
         index,
         vote,
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -380,6 +383,7 @@ pub fn create_vote_proposal_quiet(
     multisig_addr: &Pubkey,
     index: u64,
     vote: Vote,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -390,6 +394,7 @@ pub fn create_vote_proposal_quiet(
         multisig_addr,
         index,
         vote,
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -404,6 +409,7 @@ fn create_vote_proposal_inner(
     multisig_addr: &Pubkey,
     index: u64,
     vote: Vote,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -483,7 +489,8 @@ fn create_vote_proposal_inner(
         proposal_pubkey,
         signer_pubkey,
         vote,
-    );
+        memo,
+    )?;
     let prepared = PreparedTransaction {
         instructions: vec![instruction],
         description: format!("{} proposal #{index}", vote.label()),
@@ -589,4 +596,61 @@ fn execute_proposal_inner(
         println!("Proposal #{index} executed successfully.");
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infra::instruction::assert_memo_replaces_none_tail;
+
+    fn fixture_keys() -> (Pubkey, Pubkey, Pubkey, Pubkey) {
+        (
+            Pubkey::new_from_array([1u8; 32]),
+            Pubkey::new_from_array([2u8; 32]),
+            Pubkey::new_from_array([3u8; 32]),
+            Pubkey::new_from_array([4u8; 32]),
+        )
+    }
+
+    #[test]
+    fn vote_instruction_encodes_some_memo_at_tail() {
+        let (program_id, multisig, proposal, member) = fixture_keys();
+        let memo = "approve invoice 137";
+        let none = build_vote_instruction(program_id, multisig, proposal, member, Vote::Approve, None)
+            .unwrap_or_else(|e| panic!("{e}"));
+        let some = build_vote_instruction(
+            program_id,
+            multisig,
+            proposal,
+            member,
+            Vote::Approve,
+            Some(memo),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+
+        assert_memo_replaces_none_tail(&none.data, &some.data, memo);
+        // Account meta lists must be untouched by the memo argument.
+        assert_eq!(none.accounts, some.accounts);
+        assert_eq!(none.program_id, some.program_id);
+    }
+
+    #[test]
+    fn vote_instruction_memo_round_trips_per_vote_kind() {
+        let (program_id, multisig, proposal, member) = fixture_keys();
+        let memo = "rejected: inputs do not match RFC";
+        for vote in [Vote::Approve, Vote::Reject, Vote::Cancel] {
+            let none = build_vote_instruction(program_id, multisig, proposal, member, vote, None)
+                .unwrap_or_else(|e| panic!("{e}"));
+            let some = build_vote_instruction(
+                program_id,
+                multisig,
+                proposal,
+                member,
+                vote,
+                Some(memo),
+            )
+            .unwrap_or_else(|e| panic!("{e}"));
+            assert_memo_replaces_none_tail(&none.data, &some.data, memo);
+        }
+    }
 }

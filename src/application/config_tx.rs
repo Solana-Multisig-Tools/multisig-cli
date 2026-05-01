@@ -70,7 +70,8 @@ pub(crate) fn build_config_transaction_create_instruction(
     transaction: Pubkey,
     creator: Pubkey,
     action: ConfigTransactionAction,
-) -> Instruction {
+    memo: Option<&str>,
+) -> Result<Instruction, MsigError> {
     let mut data = Vec::new();
     data.extend_from_slice(&CONFIG_TX_CREATE_DISC);
     data.extend_from_slice(&1u32.to_le_bytes());
@@ -128,9 +129,9 @@ pub(crate) fn build_config_transaction_create_instruction(
             }
         }
     }
-    data.push(0x00);
+    crate::infra::instruction::borsh_write_option_string(&mut data, memo)?;
 
-    Instruction {
+    Ok(Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new(multisig, false),
@@ -140,7 +141,7 @@ pub(crate) fn build_config_transaction_create_instruction(
             AccountMeta::new_readonly(SYSTEM_PROGRAM, false),
         ],
         data,
-    }
+    })
 }
 
 fn push_pubkey_vec(data: &mut Vec<u8>, values: &[Pubkey]) {
@@ -167,6 +168,7 @@ pub fn create_member_proposal(
     member_addr: &str,
     permissions: u8,
     add: bool,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -238,7 +240,8 @@ pub fn create_member_proposal(
         transaction_pubkey,
         creator,
         action,
-    ));
+        memo,
+    )?);
 
     instructions.push(build_proposal_create_instruction(
         program_id,
@@ -282,6 +285,7 @@ pub fn create_set_rent_collector_proposal(
     signer: &dyn Signer,
     multisig_addr: &Pubkey,
     rent_collector: Option<&str>,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -337,7 +341,8 @@ pub fn create_set_rent_collector_proposal(
             ConfigTransactionAction::SetRentCollector {
                 new_rent_collector: rent_collector_pubkey,
             },
-        ),
+            memo,
+        )?,
         build_proposal_create_instruction(
             program_id,
             *multisig_addr,
@@ -375,6 +380,7 @@ fn create_config_action_proposal(
     multisig_addr: &Pubkey,
     action: ConfigTransactionAction,
     description: String,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -425,7 +431,8 @@ fn create_config_action_proposal(
             transaction_pubkey,
             creator,
             action,
-        ),
+            memo,
+        )?,
         build_proposal_create_instruction(
             program_id,
             *multisig_addr,
@@ -487,6 +494,7 @@ pub fn create_change_threshold_proposal(
     signer: &dyn Signer,
     multisig_addr: &Pubkey,
     new_threshold: u16,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -501,6 +509,7 @@ pub fn create_change_threshold_proposal(
         multisig_addr,
         ConfigTransactionAction::ChangeThreshold { new_threshold },
         format!("Change multisig threshold to {new_threshold}"),
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -514,6 +523,7 @@ pub fn create_set_time_lock_proposal(
     signer: &dyn Signer,
     multisig_addr: &Pubkey,
     new_time_lock: u32,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -525,6 +535,7 @@ pub fn create_set_time_lock_proposal(
         multisig_addr,
         ConfigTransactionAction::SetTimeLock { new_time_lock },
         format!("Set multisig time lock to {new_time_lock}s"),
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -544,6 +555,7 @@ pub fn create_add_spending_limit_proposal(
     members: Vec<Pubkey>,
     destinations: Vec<Pubkey>,
     create_key_override: Option<Pubkey>,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -608,6 +620,7 @@ pub fn create_add_spending_limit_proposal(
             destinations,
         },
         format!("Add spending limit {spending_limit}"),
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -627,6 +640,7 @@ pub fn create_remove_spending_limit_proposal(
     signer: &dyn Signer,
     multisig_addr: &Pubkey,
     spending_limit: Pubkey,
+    memo: Option<&str>,
     config: &Config,
     dry_run: bool,
     skip_confirm: bool,
@@ -638,6 +652,7 @@ pub fn create_remove_spending_limit_proposal(
         multisig_addr,
         ConfigTransactionAction::RemoveSpendingLimit { spending_limit },
         format!("Remove spending limit {spending_limit}"),
+        memo,
         config,
         dry_run,
         skip_confirm,
@@ -711,4 +726,78 @@ pub fn parse_permissions(input: &str) -> Result<u8, MsigError> {
         ));
     }
     Ok(mask)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infra::instruction::assert_memo_replaces_none_tail;
+
+    #[test]
+    fn config_transaction_create_encodes_some_memo_at_tail() {
+        let program_id = Pubkey::new_from_array([1u8; 32]);
+        let multisig = Pubkey::new_from_array([2u8; 32]);
+        let transaction = Pubkey::new_from_array([3u8; 32]);
+        let creator = Pubkey::new_from_array([4u8; 32]);
+        let memo = "raise threshold per board approval";
+
+        let none = build_config_transaction_create_instruction(
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            ConfigTransactionAction::ChangeThreshold { new_threshold: 3 },
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let some = build_config_transaction_create_instruction(
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            ConfigTransactionAction::ChangeThreshold { new_threshold: 3 },
+            Some(memo),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+
+        assert_memo_replaces_none_tail(&none.data, &some.data, memo);
+    }
+
+    /// The `SetRentCollector` action also encodes its own `Option<Pubkey>` —
+    /// a separate test ensures the trailing memo isn't conflated with the
+    /// inner option byte for the rent-collector field.
+    #[test]
+    fn config_transaction_create_set_rent_collector_memo_round_trips() {
+        let program_id = Pubkey::new_from_array([1u8; 32]);
+        let multisig = Pubkey::new_from_array([2u8; 32]);
+        let transaction = Pubkey::new_from_array([3u8; 32]);
+        let creator = Pubkey::new_from_array([4u8; 32]);
+        let rc = Some(Pubkey::new_from_array([9u8; 32]));
+        let memo = "rotate rent collector to ops vault";
+
+        let none = build_config_transaction_create_instruction(
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            ConfigTransactionAction::SetRentCollector {
+                new_rent_collector: rc,
+            },
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let some = build_config_transaction_create_instruction(
+            program_id,
+            multisig,
+            transaction,
+            creator,
+            ConfigTransactionAction::SetRentCollector {
+                new_rent_collector: rc,
+            },
+            Some(memo),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+
+        assert_memo_replaces_none_tail(&none.data, &some.data, memo);
+    }
 }
