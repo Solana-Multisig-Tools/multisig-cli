@@ -28,21 +28,11 @@ fn generate_random_keypair() -> Result<[u8; 64], MsigError> {
     Ok(keypair)
 }
 
-/// Derive the programConfig PDA for Squads v4.
-/// Seeds: ["multisig", "program_config"]
-fn program_config_pda(program_id: &Pubkey) -> Pubkey {
-    let (pda, _) = pda::find_program_address(
-        &[b"multisig".as_ref(), b"program_config".as_ref()],
-        program_id,
-    );
-    pda
-}
-
 /// Fetch the treasury address from the programConfig account.
 /// Layout: 8 bytes discriminator, then fields. Treasury is the second
 /// field after `config_authority: Pubkey` (32 bytes), so at offset 8+32 = 40.
 fn fetch_treasury(rpc: &dyn RpcProvider, program_id: &Pubkey) -> Result<Pubkey, MsigError> {
-    let config_pda = program_config_pda(program_id);
+    let (config_pda, _) = pda::program_config_pda(program_id);
     let config_str = config_pda.to_string();
 
     let account = rpc.get_account_info(&config_str)?.ok_or_else(|| {
@@ -173,7 +163,7 @@ fn create_multisig_inner(
     let creator = signer.pubkey();
 
     // Fetch programConfig and treasury
-    let config_pda = program_config_pda(&program_id);
+    let (config_pda, _) = pda::program_config_pda(&program_id);
     let treasury = fetch_treasury(rpc, &program_id)?;
 
     let create_key_bytes = generate_random_keypair()?;
