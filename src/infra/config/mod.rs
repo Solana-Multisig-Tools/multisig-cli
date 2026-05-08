@@ -14,6 +14,7 @@ pub struct GlobalFlags {
     pub vault_index: Option<u8>,
     pub priority_fee: Option<u64>,
     pub program_id: Option<String>,
+    pub truncate_addresses: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -27,6 +28,7 @@ pub struct Config {
     pub labels: HashMap<String, String>,
     pub tokens: HashMap<String, String>,
     pub program_id: solana_pubkey::Pubkey,
+    pub truncate_addresses: bool,
 }
 
 impl Default for Config {
@@ -41,6 +43,7 @@ impl Default for Config {
             labels: HashMap::new(),
             tokens: HashMap::new(),
             program_id: crate::infra::pda::PROGRAM_ID,
+            truncate_addresses: true,
         }
     }
 }
@@ -85,6 +88,11 @@ pub fn load_config(global_flags: &GlobalFlags) -> Result<Config, MsigError> {
             .parse()
             .map_err(|_| MsigError::Config(format!("invalid MSIG_PROGRAM_ID: '{val}'")))?;
     }
+    if let Ok(val) = std::env::var("MSIG_FULL_ADDRESSES") {
+        if matches!(val.as_str(), "1" | "true" | "TRUE" | "yes" | "YES") {
+            config.truncate_addresses = false;
+        }
+    }
 
     if let Some(ref val) = global_flags.cluster {
         config.cluster = file::resolve_cluster_moniker(val);
@@ -108,6 +116,9 @@ pub fn load_config(global_flags: &GlobalFlags) -> Result<Config, MsigError> {
         config.program_id = val
             .parse()
             .map_err(|_| MsigError::Config(format!("invalid program_id: '{val}'")))?;
+    }
+    if let Some(val) = global_flags.truncate_addresses {
+        config.truncate_addresses = val;
     }
 
     validate_config(&config)?;
@@ -137,6 +148,9 @@ fn apply_file_config(config: &mut Config, file_cfg: &file::ConfigFile) -> Result
         config.program_id = v
             .parse()
             .map_err(|_| MsigError::Config(format!("invalid program_id in config: '{v}'")))?;
+    }
+    if let Some(v) = file_cfg.default.truncate_addresses {
+        config.truncate_addresses = v;
     }
 
     for (k, v) in &file_cfg.labels {
@@ -194,6 +208,12 @@ fn apply_project_file_config_with_trust(
     if file_cfg.default.program_id.is_some() {
         return Err(MsigError::Config(format!(
             "refusing to auto-load default.program_id from {}. Set it in user config, MSIG_PROGRAM_ID, --program-id, or explicitly trust this project with MSIG_TRUST_PROJECT_CONFIG=1.",
+            path.display()
+        )));
+    }
+    if file_cfg.default.truncate_addresses.is_some() {
+        return Err(MsigError::Config(format!(
+            "refusing to auto-load default.truncate_addresses from {}. Set it in user config, MSIG_FULL_ADDRESSES, --full-addresses, or explicitly trust this project with MSIG_TRUST_PROJECT_CONFIG=1.",
             path.display()
         )));
     }
@@ -277,6 +297,37 @@ mod tests {
         assert_eq!(cfg.cluster, "https://api.mainnet-beta.solana.com");
         assert_eq!(cfg.commitment, "confirmed");
         assert_eq!(cfg.vault_index, 0);
+        assert!(cfg.truncate_addresses);
+    }
+
+    #[test]
+    fn file_config_can_disable_truncation() {
+        let mut cfg = Config::default();
+        let mut file_cfg = file::ConfigFile::default();
+        file_cfg.default.truncate_addresses = Some(false);
+        apply_file_config(&mut cfg, &file_cfg).unwrap_or_else(|e| panic!("{e}"));
+        assert!(!cfg.truncate_addresses);
+    }
+
+    #[test]
+    fn untrusted_project_config_rejects_truncate_addresses() {
+        let mut cfg = Config::default();
+        let mut file_cfg = file::ConfigFile::default();
+        file_cfg.default.truncate_addresses = Some(true);
+
+        let err = match apply_project_file_config_with_trust(
+            &mut cfg,
+            &file_cfg,
+            std::path::Path::new(".msig.toml"),
+            false,
+        ) {
+            Ok(_) => panic!("untrusted project config must not set truncate_addresses"),
+            Err(err) => err,
+        };
+
+        let msg = format!("{err}");
+        assert!(msg.contains("truncate_addresses"));
+        assert!(msg.contains("MSIG_TRUST_PROJECT_CONFIG=1"));
     }
 
     #[test]
@@ -381,6 +432,7 @@ mod tests {
         file_cfg.default.keypair = Some("/tmp/id.json".to_string());
         file_cfg.default.priority_fee = Some(1000);
         file_cfg.default.program_id = Some(program_id.to_string());
+        file_cfg.default.truncate_addresses = Some(false);
 
         apply_project_file_config_with_trust(
             &mut cfg,
@@ -394,5 +446,6 @@ mod tests {
         assert_eq!(cfg.keypair.as_deref(), Some("/tmp/id.json"));
         assert_eq!(cfg.priority_fee, 1000);
         assert_eq!(cfg.program_id, program_id);
+        assert!(!cfg.truncate_addresses);
     }
 }

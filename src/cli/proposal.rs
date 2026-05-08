@@ -238,6 +238,7 @@ fn cmd_queue(
                     &multisig_pubkey,
                     summary.index,
                     &cfg.program_id,
+                    cfg.truncate_addresses,
                 )?;
                 let already_voted = detail.approved.contains(&signer_pubkey)
                     || detail.rejected.contains(&signer_pubkey)
@@ -379,12 +380,18 @@ fn cmd_show(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Msig
         .map_err(|_| MsigError::Usage(format!("invalid multisig address: '{resolved}'")))?;
     let index = resolve_proposal_index(&rpc, &proposal_ref, &multisig_pubkey, &cfg)?;
 
-    let detail = inspect::get_proposal_detail(&rpc, &multisig_pubkey, index, &cfg.program_id)?;
+    let detail = inspect::get_proposal_detail(
+        &rpc,
+        &multisig_pubkey,
+        index,
+        &cfg.program_id,
+        cfg.truncate_addresses,
+    )?;
 
     match output_mode {
         OutputMode::Json => json::print_json(&detail),
         OutputMode::Text => {
-            render_proposal_detail(index, &detail, &cfg.labels, verbose);
+            render_proposal_detail(index, &detail, &cfg.labels, verbose, cfg.truncate_addresses);
         }
     }
     Ok(())
@@ -395,6 +402,7 @@ fn render_proposal_detail(
     detail: &crate::domain::proposal::ProposalDetail,
     labels: &std::collections::HashMap<String, String>,
     verbose: bool,
+    truncate: bool,
 ) {
     println!("Proposal #{index}");
     println!(
@@ -409,19 +417,19 @@ fn render_proposal_detail(
     if !detail.approved.is_empty() {
         println!("  Approved by:");
         for pk in &detail.approved {
-            println!("    {}", format_labeled_address(pk, labels));
+            println!("    {}", format_labeled_address(pk, labels, truncate));
         }
     }
     if !detail.rejected.is_empty() {
         println!("  Rejected by:");
         for pk in &detail.rejected {
-            println!("    {}", format_labeled_address(pk, labels));
+            println!("    {}", format_labeled_address(pk, labels, truncate));
         }
     }
     if !detail.cancelled.is_empty() {
         println!("  Cancelled by:");
         for pk in &detail.cancelled {
-            println!("    {}", format_labeled_address(pk, labels));
+            println!("    {}", format_labeled_address(pk, labels, truncate));
         }
     }
     if let Some(ref vtx) = detail.vault_tx {
@@ -453,7 +461,7 @@ fn render_proposal_detail(
                     }
                     println!(
                         "          {} ({})",
-                        format_labeled_address(&acct.address, labels),
+                        format_labeled_address(&acct.address, labels, truncate),
                         flags.join(", ")
                     );
                 }
@@ -516,8 +524,9 @@ fn format_config_action(action: &crate::domain::transaction::ConfigAction) -> St
 fn format_labeled_address(
     pubkey: &solana_pubkey::Pubkey,
     labels: &std::collections::HashMap<String, String>,
+    truncate: bool,
 ) -> String {
-    crate::infra::config::labels::format_address(&pubkey.to_string(), labels)
+    crate::infra::config::labels::format_address(&pubkey.to_string(), labels, truncate)
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

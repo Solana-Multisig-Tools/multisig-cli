@@ -3,10 +3,11 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
-use crate::output::abbreviate_addr;
+use crate::output::format_addr;
 use crate::tui::theme::Theme;
 
 /// Render the bottom status bar showing multisig, cluster, and signer info.
+#[allow(clippy::too_many_arguments)]
 pub fn render_status_bar(
     frame: &mut Frame,
     area: Rect,
@@ -15,12 +16,13 @@ pub fn render_status_bar(
     multisig_label: Option<&str>,
     cluster: &str,
     keypair: Option<&str>,
+    truncate: bool,
 ) {
     let style = theme.status_bar_style();
 
     let multisig_display = match (multisig_label, multisig) {
-        (Some(label), Some(addr)) => format!("{label} ({})", abbreviate_addr(addr)),
-        (None, Some(addr)) => abbreviate_addr(addr),
+        (Some(label), Some(addr)) => format!("{label} ({})", format_addr(addr, truncate)),
+        (None, Some(addr)) => format_addr(addr, truncate),
         _ => "none".to_string(),
     };
 

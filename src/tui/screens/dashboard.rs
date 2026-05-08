@@ -6,7 +6,7 @@ use ratatui::Frame;
 
 use crate::domain::multisig::MultisigInfo;
 use crate::domain::proposal::ProposalSummary;
-use crate::output::{abbreviate_addr, format_sol};
+use crate::output::{format_addr, format_sol};
 use crate::tui::app::{DashboardState, Loadable};
 use crate::tui::format;
 use crate::tui::theme::Theme;
@@ -17,6 +17,7 @@ pub fn render_dashboard(
     theme: &Theme,
     state: &DashboardState,
     multisig_addr: Option<&str>,
+    truncate: bool,
 ) {
     // Compute content-sized heights
     let info_height = match &state.multisig_info {
@@ -48,7 +49,7 @@ pub fn render_dashboard(
 
     // Header
     let addr_display = multisig_addr
-        .map(abbreviate_addr)
+        .map(|s| format_addr(s, truncate))
         .unwrap_or_else(|| "(none)".to_string());
     frame.render_widget(
         Paragraph::new(Line::from(vec![
@@ -60,11 +61,11 @@ pub fn render_dashboard(
     );
 
     // Multisig info
-    render_multisig_info(frame, chunks[1], theme, &state.multisig_info);
+    render_multisig_info(frame, chunks[1], theme, &state.multisig_info, truncate);
 
     // Proposals — only if there's something to show
     if proposals_height > 0 {
-        render_recent_proposals(frame, chunks[2], theme, &state.proposals);
+        render_recent_proposals(frame, chunks[2], theme, &state.proposals, truncate);
     }
 
     // Help — subtle at bottom
@@ -93,6 +94,7 @@ fn render_multisig_info(
     area: Rect,
     theme: &Theme,
     info: &Loadable<MultisigInfo>,
+    truncate: bool,
 ) {
     match info {
         Loadable::Idle | Loadable::Loading => {
@@ -110,7 +112,7 @@ fn render_multisig_info(
         }
         Loadable::Loaded(info) => {
             let bal = format_sol(info.vault_balance_lamports);
-            let vault = abbreviate_addr(&info.vault_address.to_string());
+            let vault = format_addr(&info.vault_address.to_string(), truncate);
             let mc = info.members.len();
 
             let mut lines = vec![
@@ -128,7 +130,7 @@ fn render_multisig_info(
                 let perms = m.permissions.labels().join(", ");
                 lines.push(Line::from(vec![
                     Span::styled(
-                        format!("   {} ", abbreviate_addr(&addr)),
+                        format!("   {} ", format_addr(&addr, truncate)),
                         theme.normal_style(),
                     ),
                     Span::styled(perms, theme.dim_style()),
@@ -145,6 +147,7 @@ fn render_recent_proposals(
     area: Rect,
     theme: &Theme,
     proposals: &Loadable<Vec<ProposalSummary>>,
+    truncate: bool,
 ) {
     let chunks = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
     frame.render_widget(
@@ -186,7 +189,7 @@ fn render_recent_proposals(
                 .map(|p| {
                     let (status_text, _) = format::status_display(p.status.label());
                     let bar = vote_bar_str(p.approved_count, p.threshold);
-                    let addr = abbreviate_addr(&p.address.to_string());
+                    let addr = format_addr(&p.address.to_string(), truncate);
                     Row::new(vec![
                         format!("{}", p.index),
                         status_text.to_string(),

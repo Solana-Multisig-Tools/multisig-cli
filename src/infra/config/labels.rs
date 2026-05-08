@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{error::MsigError, output::abbreviate_addr};
+use crate::{error::MsigError, output::format_addr};
 
 /// Validate that a label contains only ASCII alphanumeric characters, hyphens, and underscores.
 pub fn validate_label(label: &str) -> Result<(), MsigError> {
@@ -52,14 +52,14 @@ pub fn resolve_address(input: &str, labels: &HashMap<String, String>) -> Result<
 
 /// Format a pubkey for display, optionally including its label.
 ///
-/// If the pubkey has a label: "label (first4...last4)"
-/// Otherwise: "first4...last4"
-pub fn format_address(pubkey: &str, labels: &HashMap<String, String>) -> String {
-    let short = abbreviate_addr(pubkey);
+/// If the pubkey has a label: "label (first4...last4)" or "label (full)"
+/// Otherwise: "first4...last4" or full address.
+pub fn format_address(pubkey: &str, labels: &HashMap<String, String>, truncate: bool) -> String {
+    let rendered = format_addr(pubkey, truncate);
     if let Some(label) = labels.get(pubkey) {
-        format!("{label} ({short})")
+        format!("{label} ({rendered})")
     } else {
-        short
+        rendered
     }
 }
 
@@ -123,21 +123,48 @@ mod tests {
     }
 
     #[test]
-    fn test_format_address_with_label() {
+    fn test_format_address_with_label_truncated() {
         let mut labels = HashMap::new();
         labels.insert(
             "7nE9GvcwsqzjRKRFbWaCN2LNpHMiQk7Q2oJsySWZ6gKm".to_string(),
             "alice".to_string(),
         );
 
-        let formatted = format_address("7nE9GvcwsqzjRKRFbWaCN2LNpHMiQk7Q2oJsySWZ6gKm", &labels);
+        let formatted = format_address(
+            "7nE9GvcwsqzjRKRFbWaCN2LNpHMiQk7Q2oJsySWZ6gKm",
+            &labels,
+            true,
+        );
         assert_eq!(formatted, "alice (7nE9...6gKm)");
+    }
+
+    #[test]
+    fn test_format_address_with_label_full() {
+        let mut labels = HashMap::new();
+        labels.insert(
+            "7nE9GvcwsqzjRKRFbWaCN2LNpHMiQk7Q2oJsySWZ6gKm".to_string(),
+            "alice".to_string(),
+        );
+
+        let formatted = format_address(
+            "7nE9GvcwsqzjRKRFbWaCN2LNpHMiQk7Q2oJsySWZ6gKm",
+            &labels,
+            false,
+        );
+        assert_eq!(
+            formatted,
+            "alice (7nE9GvcwsqzjRKRFbWaCN2LNpHMiQk7Q2oJsySWZ6gKm)"
+        );
     }
 
     #[test]
     fn test_format_address_without_label() {
         let labels = HashMap::new();
-        let formatted = format_address("7nE9GvcwsqzjRKRFbWaCN2LNpHMiQk7Q2oJsySWZ6gKm", &labels);
+        let formatted = format_address(
+            "7nE9GvcwsqzjRKRFbWaCN2LNpHMiQk7Q2oJsySWZ6gKm",
+            &labels,
+            true,
+        );
         assert_eq!(formatted, "7nE9...6gKm");
     }
 }

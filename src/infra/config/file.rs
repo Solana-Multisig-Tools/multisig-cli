@@ -23,6 +23,7 @@ pub struct DefaultSection {
     pub vault_index: Option<u8>,
     pub priority_fee: Option<u64>,
     pub program_id: Option<String>,
+    pub truncate_addresses: Option<bool>,
 }
 
 /// Resolve a cluster moniker to a full RPC URL.
@@ -224,6 +225,18 @@ pub fn save_config_value(key: &str, value: &str) -> Result<(), MsigError> {
                 .map_err(|_| MsigError::Config(format!("invalid vault_index: {value}")))?;
             cfg.default.vault_index = Some(idx);
         }
+        "truncate_addresses" | "default.truncate_addresses" => {
+            let parsed = match value {
+                "true" | "1" | "yes" => true,
+                "false" | "0" | "no" => false,
+                _ => {
+                    return Err(MsigError::Config(format!(
+                        "invalid truncate_addresses: '{value}'. Expected true or false."
+                    )));
+                }
+            };
+            cfg.default.truncate_addresses = Some(parsed);
+        }
         other => {
             // Handle labels.NAME and tokens.NAME
             if let Some(label_key) = other.strip_prefix("labels.") {
@@ -389,6 +402,9 @@ pub fn apply_profile(config: &mut super::Config, profile_name: &str) -> Result<(
                     "invalid program_id in profile '{profile_name}': {v}"
                 ))
             })?;
+        }
+        if let Some(v) = section.get("truncate_addresses").and_then(|v| v.as_bool()) {
+            config.truncate_addresses = v;
         }
     }
 

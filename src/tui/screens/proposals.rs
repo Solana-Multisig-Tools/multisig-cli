@@ -4,12 +4,18 @@ use ratatui::widgets::{Paragraph, Row, Table, TableState};
 use ratatui::Frame;
 
 use crate::domain::proposal::{ProposalDetail, ProposalSummary};
-use crate::output::abbreviate_addr;
+use crate::output::format_addr;
 use crate::tui::app::{Loadable, ProposalDetailState, ProposalsState};
 use crate::tui::format;
 use crate::tui::theme::Theme;
 
-pub fn render_proposals(frame: &mut Frame, area: Rect, theme: &Theme, state: &ProposalsState) {
+pub fn render_proposals(
+    frame: &mut Frame,
+    area: Rect,
+    theme: &Theme,
+    state: &ProposalsState,
+    truncate: bool,
+) {
     let chunks = Layout::vertical([
         Constraint::Length(1), // header
         Constraint::Min(3),    // table (fills)
@@ -52,6 +58,7 @@ pub fn render_proposals(frame: &mut Frame, area: Rect, theme: &Theme, state: &Pr
                     proposals,
                     state.selected_index,
                     state.scroll_offset,
+                    truncate,
                 );
             }
         }
@@ -80,6 +87,7 @@ fn render_table(
     proposals: &[ProposalSummary],
     selected: usize,
     scroll_offset: usize,
+    truncate: bool,
 ) {
     let header = Row::new(vec!["#", "Status", "Votes", "Rejected", "Address"])
         .style(theme.header_style())
@@ -95,7 +103,7 @@ fn render_table(
             let abs = scroll_offset + i;
             let (status_text, _) = format::status_display(p.status.label());
             let bar = vote_bar_str(p.approved_count, p.threshold);
-            let addr = abbreviate_addr(&p.address.to_string());
+            let addr = format_addr(&p.address.to_string(), truncate);
 
             let style = if abs == selected {
                 theme.selected_style()
@@ -143,6 +151,7 @@ pub fn render_proposal_detail(
     area: Rect,
     theme: &Theme,
     state: &ProposalDetailState,
+    truncate: bool,
 ) {
     let chunks = Layout::vertical([
         Constraint::Length(1), // header
@@ -176,7 +185,7 @@ pub fn render_proposal_detail(
             );
         }
         Loadable::Loaded(detail) => {
-            render_detail(frame, inner, theme, detail, state.scroll_offset);
+            render_detail(frame, inner, theme, detail, state.scroll_offset, truncate);
             if let Some(ref msg) = state.action_message {
                 let style = if state.action_message_is_error {
                     theme.error_style()
@@ -214,11 +223,12 @@ fn render_detail(
     theme: &Theme,
     detail: &ProposalDetail,
     scroll_offset: usize,
+    truncate: bool,
 ) {
     let s = &detail.summary;
     let (status_text, _) = format::status_display(s.status.label());
-    let addr = abbreviate_addr(&s.address.to_string());
-    let ms = abbreviate_addr(&detail.multisig.to_string());
+    let addr = format_addr(&s.address.to_string(), truncate);
+    let ms = format_addr(&detail.multisig.to_string(), truncate);
 
     let mut lines = vec![
         kv("Status", status_text, theme),
@@ -239,7 +249,7 @@ fn render_detail(
     } else {
         for pk in &detail.approved {
             lines.push(Line::from(Span::styled(
-                format!("   \u{2713} {}", abbreviate_addr(&pk.to_string())),
+                format!("   \u{2713} {}", format_addr(&pk.to_string(), truncate)),
                 theme.success_style(),
             )));
         }
@@ -252,7 +262,7 @@ fn render_detail(
     } else {
         for pk in &detail.rejected {
             lines.push(Line::from(Span::styled(
-                format!("   \u{2717} {}", abbreviate_addr(&pk.to_string())),
+                format!("   \u{2717} {}", format_addr(&pk.to_string(), truncate)),
                 theme.error_style(),
             )));
         }
@@ -263,7 +273,7 @@ fn render_detail(
         lines.push(Line::from(Span::styled(" Cancelled", theme.title_style())));
         for pk in &detail.cancelled {
             lines.push(Line::from(Span::styled(
-                format!("   \u{2298} {}", abbreviate_addr(&pk.to_string())),
+                format!("   \u{2298} {}", format_addr(&pk.to_string(), truncate)),
                 theme.warning_style(),
             )));
         }
@@ -280,7 +290,7 @@ fn render_detail(
                 Span::styled(format!("   [{i}] "), theme.dim_style()),
                 Span::styled(&ix.program_name, theme.title_style()),
                 Span::styled(
-                    format!(" {}", abbreviate_addr(&ix.program_id.to_string())),
+                    format!(" {}", format_addr(&ix.program_id.to_string(), truncate)),
                     theme.dim_style(),
                 ),
             ]));

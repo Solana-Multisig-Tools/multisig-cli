@@ -1,4 +1,4 @@
-use crate::output::abbreviate_addr;
+use crate::output::format_addr;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
 
@@ -73,11 +73,12 @@ pub fn member_line<'a>(
     addr: &str,
     permissions: &[&str],
     theme: &crate::tui::theme::Theme,
+    truncate: bool,
 ) -> Vec<Span<'a>> {
     let perms_str = permissions.join(", ");
     vec![
         Span::styled(
-            format!("  \u{25CF} {}  ", abbreviate_addr(addr)),
+            format!("  \u{25CF} {}  ", format_addr(addr, truncate)),
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),

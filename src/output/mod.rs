@@ -53,6 +53,19 @@ pub fn abbreviate_addr(pubkey: &str) -> String {
     }
 }
 
+/// Format an address either truncated (default) or full.
+///
+/// The truncated form is visually compact but only carries ~24 bits of entropy
+/// per side, which is cheap to grind into a vanity collision. Callers in
+/// security-critical paths should let the user opt into full display.
+pub fn format_addr(pubkey: &str, truncate: bool) -> String {
+    if truncate {
+        abbreviate_addr(pubkey)
+    } else {
+        pubkey.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +89,17 @@ mod tests {
     #[test]
     fn abbreviate_addr_short_passthrough() {
         assert_eq!(abbreviate_addr("AbCd"), "AbCd");
+    }
+
+    #[test]
+    fn format_addr_truncates_when_enabled() {
+        let addr = "7nE9GvcwsqzjiaKchVRvG4F6BaLqGmZ9";
+        assert_eq!(format_addr(addr, true), "7nE9...GmZ9");
+    }
+
+    #[test]
+    fn format_addr_full_when_disabled() {
+        let addr = "7nE9GvcwsqzjiaKchVRvG4F6BaLqGmZ9";
+        assert_eq!(format_addr(addr, false), addr);
     }
 }

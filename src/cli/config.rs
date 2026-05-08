@@ -28,6 +28,7 @@ fn cmd_show(globals: GlobalOpts) -> Result<(), MsigError> {
                 "vault_index": cfg.vault_index,
                 "priority_fee": cfg.priority_fee,
                 "program_id": cfg.program_id.to_string(),
+                "truncate_addresses": cfg.truncate_addresses,
                 "labels": cfg.labels,
                 "tokens": cfg.tokens,
             });
@@ -38,19 +39,20 @@ fn cmd_show(globals: GlobalOpts) -> Result<(), MsigError> {
         }
         OutputMode::Text => {
             println!("Resolved configuration:");
-            println!("  cluster:      {}", cfg.cluster);
+            println!("  cluster:            {}", cfg.cluster);
             println!(
-                "  keypair:      {}",
+                "  keypair:            {}",
                 cfg.keypair.as_deref().unwrap_or("(none)")
             );
             println!(
-                "  multisig:     {}",
+                "  multisig:           {}",
                 cfg.multisig.as_deref().unwrap_or("(none)")
             );
-            println!("  commitment:   {}", cfg.commitment);
-            println!("  vault_index:  {}", cfg.vault_index);
-            println!("  priority_fee: {}", cfg.priority_fee);
-            println!("  program_id:   {}", cfg.program_id);
+            println!("  commitment:         {}", cfg.commitment);
+            println!("  vault_index:        {}", cfg.vault_index);
+            println!("  priority_fee:       {}", cfg.priority_fee);
+            println!("  program_id:         {}", cfg.program_id);
+            println!("  truncate_addresses: {}", cfg.truncate_addresses);
             if !cfg.labels.is_empty() {
                 println!("  labels:");
                 for (k, v) in &cfg.labels {

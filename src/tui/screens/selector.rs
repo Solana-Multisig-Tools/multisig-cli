@@ -4,7 +4,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-use crate::output::abbreviate_addr;
+use crate::output::format_addr;
 use crate::tui::app::SelectorState;
 use crate::tui::theme::Theme;
 use crate::tui::widgets::input::render_input;
@@ -22,11 +22,17 @@ const LOGO: &[&str] = &[
     "    ████████████    ",
 ];
 
-pub fn render_selector(frame: &mut Frame, area: Rect, theme: &Theme, state: &SelectorState) {
+pub fn render_selector(
+    frame: &mut Frame,
+    area: Rect,
+    theme: &Theme,
+    state: &SelectorState,
+    truncate: bool,
+) {
     if state.saved_multisigs.is_empty() {
         render_empty_selector(frame, area, theme, state);
     } else {
-        render_list_selector(frame, area, theme, state);
+        render_list_selector(frame, area, theme, state, truncate);
     }
 }
 
@@ -120,7 +126,13 @@ fn render_empty_selector(frame: &mut Frame, area: Rect, theme: &Theme, state: &S
 }
 
 /// List view when saved multisigs exist.
-fn render_list_selector(frame: &mut Frame, area: Rect, theme: &Theme, state: &SelectorState) {
+fn render_list_selector(
+    frame: &mut Frame,
+    area: Rect,
+    theme: &Theme,
+    state: &SelectorState,
+    truncate: bool,
+) {
     let list_height = (state.saved_multisigs.len() as u16 + 2).min(area.height / 2);
 
     let chunks = Layout::vertical([
@@ -187,8 +199,8 @@ fn render_list_selector(frame: &mut Frame, area: Rect, theme: &Theme, state: &Se
                 theme.normal_style()
             };
             let display = match label {
-                Some(l) => format!(" {indicator} {l} ({})", abbreviate_addr(addr)),
-                None => format!(" {indicator} {}", abbreviate_addr(addr)),
+                Some(l) => format!(" {indicator} {l} ({})", format_addr(addr, truncate)),
+                None => format!(" {indicator} {}", format_addr(addr, truncate)),
             };
             Line::styled(display, style)
         })

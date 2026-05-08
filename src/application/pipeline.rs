@@ -8,7 +8,7 @@ use crate::infra::config::Config;
 use crate::infra::instruction::Instruction;
 use crate::infra::rpc::RpcProvider;
 use crate::infra::signer::Signer;
-use crate::output::abbreviate_addr;
+use crate::output::format_addr;
 
 const COMPUTE_BUDGET_PROGRAM: Pubkey =
     solana_pubkey::pubkey!("ComputeBudget111111111111111111111111111111");
@@ -519,6 +519,7 @@ fn execute_transaction_inner(
             &final_instructions,
             &prepared.review_instructions,
             units_consumed,
+            config.truncate_addresses,
         );
         display_summary(&summary);
         display_message_hash(&message_bytes);
@@ -637,9 +638,16 @@ fn build_summary(
     ixs: &[Instruction],
     review_ixs: &[Instruction],
     units_consumed: u64,
+    truncate: bool,
 ) -> TransactionSummary {
-    let instructions = ixs.iter().map(build_instruction_display).collect();
-    let review_instructions = review_ixs.iter().map(build_instruction_display).collect();
+    let instructions = ixs
+        .iter()
+        .map(|ix| build_instruction_display(ix, truncate))
+        .collect();
+    let review_instructions = review_ixs
+        .iter()
+        .map(|ix| build_instruction_display(ix, truncate))
+        .collect();
 
     let estimated_fee = 5000 + units_consumed / 1000;
     TransactionSummary {
@@ -692,9 +700,9 @@ fn display_message_hash(message: &[u8]) {
     eprintln!();
 }
 
-fn build_instruction_display(ix: &Instruction) -> InstructionDisplay {
+fn build_instruction_display(ix: &Instruction, truncate: bool) -> InstructionDisplay {
     InstructionDisplay {
-        program: identify_program(&ix.program_id),
+        program: identify_program(&ix.program_id, truncate),
         accounts_count: ix.accounts.len(),
         data_len: ix.data.len(),
         decoded: decode_instruction_name(ix),
@@ -817,7 +825,7 @@ fn decode_memo_instruction(ix: &Instruction) -> Option<String> {
     }
 }
 
-fn identify_program(program_id: &Pubkey) -> String {
+fn identify_program(program_id: &Pubkey, truncate: bool) -> String {
     match program_id.to_string().as_str() {
         "11111111111111111111111111111111" => "System".to_string(),
         "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" => "Token".to_string(),
@@ -826,7 +834,7 @@ fn identify_program(program_id: &Pubkey) -> String {
         "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr" => "Memo".to_string(),
         "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo" => "Memo".to_string(),
         "ComputeBudget111111111111111111111111111111" => "ComputeBudget".to_string(),
-        other => abbreviate_addr(other),
+        other => format_addr(other, truncate),
     }
 }
 
@@ -1020,7 +1028,7 @@ mod tests {
             accounts: vec![],
             data: vec![0x30, 0xfa, 0x4e, 0xa8, 0xd0, 0xe2, 0xda, 0xd3],
         };
-        let summary = build_summary("review", &[outer], &[inner], 1_000);
+        let summary = build_summary("review", &[outer], &[inner], 1_000, true);
 
         assert_eq!(summary.instructions.len(), 1);
         assert_eq!(summary.review_instructions.len(), 1);

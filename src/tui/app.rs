@@ -71,6 +71,7 @@ pub enum RpcRequest {
         multisig: String,
         index: u64,
         program_id: solana_pubkey::Pubkey,
+        truncate: bool,
     },
     CreateSolTransfer {
         config: Box<Config>,
@@ -788,6 +789,7 @@ impl App {
         // Clone address before mutable borrow to avoid borrow conflicts
         let addr_clone = self.multisig_address.clone();
         let program_id = self.config.program_id;
+        let truncate = self.config.truncate_addresses;
 
         if let ScreenState::Proposals(ref mut state) = self.current_screen_mut() {
             match key.code {
@@ -817,6 +819,7 @@ impl App {
                                     multisig: addr.clone(),
                                     index,
                                     program_id,
+                                    truncate,
                                 });
                             }
                         }
@@ -1146,6 +1149,7 @@ impl App {
     fn refresh_current_screen(&mut self, request_tx: &Sender<RpcRequest>) {
         let addr = self.multisig_address.clone();
         let program_id = self.config.program_id;
+        let truncate = self.config.truncate_addresses;
         match self.current_screen_mut() {
             ScreenState::Dashboard(state) => {
                 state.multisig_info = Loadable::Loading;
@@ -1183,6 +1187,7 @@ impl App {
                         multisig: addr,
                         index: state.index,
                         program_id,
+                        truncate,
                     });
                 }
             }

@@ -101,6 +101,7 @@ fn run_loop(
                 multisig_label,
                 &app.config.cluster,
                 app.config.keypair.as_deref(),
+                app.config.truncate_addresses,
             );
         })?;
 
@@ -130,12 +131,13 @@ fn render_screen(
     theme: &Theme,
     app: &App,
 ) {
+    let truncate = app.config.truncate_addresses;
     match app.current_screen() {
         ScreenState::Setup(state) => {
             screens::setup::render_setup(frame, area, theme, state);
         }
         ScreenState::Selector(state) => {
-            screens::selector::render_selector(frame, area, theme, state);
+            screens::selector::render_selector(frame, area, theme, state, truncate);
         }
         ScreenState::Dashboard(state) => {
             screens::dashboard::render_dashboard(
@@ -144,16 +146,17 @@ fn render_screen(
                 theme,
                 state,
                 app.multisig_address.as_deref(),
+                truncate,
             );
         }
         ScreenState::Proposals(state) => {
-            screens::proposals::render_proposals(frame, area, theme, state);
+            screens::proposals::render_proposals(frame, area, theme, state, truncate);
         }
         ScreenState::ProposalDetail(state) => {
-            screens::proposals::render_proposal_detail(frame, area, theme, state);
+            screens::proposals::render_proposal_detail(frame, area, theme, state, truncate);
         }
         ScreenState::Create(state) => {
-            screens::create::render_create(frame, area, theme, state);
+            screens::create::render_create(frame, area, theme, state, truncate);
         }
         ScreenState::CommandPalette(state) => {
             screens::palette::render_command_palette(frame, area, theme, state);
@@ -207,6 +210,7 @@ fn worker_loop(
                 multisig,
                 index,
                 program_id,
+                truncate,
             } => {
                 let result = multisig
                     .parse::<solana_pubkey::Pubkey>()
@@ -214,7 +218,7 @@ fn worker_loop(
                         MsigError::Usage(format!("invalid multisig address: '{multisig}'"))
                     })
                     .and_then(|pubkey| {
-                        inspect::get_proposal_detail(client, &pubkey, index, &program_id)
+                        inspect::get_proposal_detail(client, &pubkey, index, &program_id, truncate)
                     });
                 Message::ProposalDetailLoaded(result)
             }

@@ -3,7 +3,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-use crate::output::abbreviate_addr;
+use crate::output::format_addr;
 use crate::tui::app::{App, CommandPaletteState, ConfirmActionState, ConfirmPhase};
 use crate::tui::format;
 use crate::tui::theme::Theme;
@@ -86,7 +86,7 @@ pub fn render_confirm_action(
     let multisig = app
         .multisig_address
         .as_deref()
-        .map(abbreviate_addr)
+        .map(|s| format_addr(s, app.config.truncate_addresses))
         .unwrap_or_else(|| "(none)".to_string());
     let signer = app
         .config

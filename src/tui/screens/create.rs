@@ -3,13 +3,19 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-use crate::output::abbreviate_addr;
+use crate::output::format_addr;
 use crate::tui::app::{CreatePhase, CreateState};
 use crate::tui::format;
 use crate::tui::theme::Theme;
 use crate::tui::widgets::input::render_input;
 
-pub fn render_create(frame: &mut Frame, area: Rect, theme: &Theme, state: &CreateState) {
+pub fn render_create(
+    frame: &mut Frame,
+    area: Rect,
+    theme: &Theme,
+    state: &CreateState,
+    truncate: bool,
+) {
     let chunks = Layout::vertical([
         Constraint::Length(1), // header
         Constraint::Length(4), // recipient
@@ -49,7 +55,7 @@ pub fn render_create(frame: &mut Frame, area: Rect, theme: &Theme, state: &Creat
         &state.amount_sol,
     );
 
-    render_review(frame, chunks[3], theme, state);
+    render_review(frame, chunks[3], theme, state, truncate);
 
     frame.render_widget(
         Paragraph::new(Line::from(format::help_spans(
@@ -100,7 +106,13 @@ fn render_labeled_input(
     );
 }
 
-fn render_review(frame: &mut Frame, area: Rect, theme: &Theme, state: &CreateState) {
+fn render_review(
+    frame: &mut Frame,
+    area: Rect,
+    theme: &Theme,
+    state: &CreateState,
+    truncate: bool,
+) {
     let block = Block::default()
         .title(" Review ")
         .borders(Borders::ALL)
@@ -121,7 +133,7 @@ fn render_review(frame: &mut Frame, area: Rect, theme: &Theme, state: &CreateSta
         Line::from(vec![
             Span::styled(" Recipient ", theme.dim_style()),
             Span::styled(
-                abbreviate_addr(state.recipient.trim()),
+                format_addr(state.recipient.trim(), truncate),
                 theme.normal_style(),
             ),
         ]),
