@@ -163,7 +163,6 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
     let mut vault_message: Option<Vec<u8>> = None;
     let mut description: Option<String> = None;
     let mut vault_index_override: Option<u8> = None;
-    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
@@ -184,7 +183,6 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
                     })?);
             }
             Long("description") => description = Some(parse_value(parser, "--description")?),
-            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("tx");
                 return Ok(());
@@ -220,7 +218,7 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
             message,
             vault_index,
             description,
-            memo.as_deref(),
+            globals.memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,
@@ -289,7 +287,7 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
         vec![instruction],
         vault_index,
         description,
-        memo.as_deref(),
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
@@ -532,7 +530,6 @@ fn cmd_export(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
     let mut index: Option<u64> = None;
     let mut file_path: Option<String> = None;
     let mut action = OfflineAction::Approve;
-    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
@@ -551,7 +548,6 @@ fn cmd_export(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
             Long("action") => {
                 action = OfflineAction::parse(&parse_value(parser, "--action")?)?;
             }
-            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 println!("Usage: msig tx export <INDEX> [--action approve|reject|cancel|execute] [--file FILE] [--memo MEMO]");
                 println!();
@@ -606,7 +602,7 @@ fn cmd_export(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
         index,
         member,
         action,
-        memo.as_deref(),
+        globals.memo.as_deref(),
     )?;
 
     let params = offline::ExportParams {

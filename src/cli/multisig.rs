@@ -23,11 +23,9 @@ pub fn run(globals: GlobalOpts, mut parser: lexopt::Parser) -> Result<(), MsigEr
 fn cmd_set_threshold(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigError> {
     use lexopt::Arg::*;
     let mut threshold: Option<u16> = None;
-    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
-            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Value(val) if threshold.is_none() => {
                 let raw = val
                     .into_string()
@@ -56,7 +54,7 @@ fn cmd_set_threshold(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result
         ctx.signer.as_ref(),
         &multisig,
         threshold,
-        memo.as_deref(),
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
@@ -76,11 +74,9 @@ fn cmd_set_threshold(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result
 fn cmd_set_time_lock(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigError> {
     use lexopt::Arg::*;
     let mut seconds: Option<u32> = None;
-    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
-            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Value(val) if seconds.is_none() => {
                 let raw = val
                     .into_string()
@@ -109,7 +105,7 @@ fn cmd_set_time_lock(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result
         ctx.signer.as_ref(),
         &multisig,
         seconds,
-        memo.as_deref(),
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
@@ -139,7 +135,6 @@ fn cmd_add_spending_limit(
     let mut destinations: Option<String> = None;
     let mut create_key: Option<String> = None;
     let mut vault_index_override: Option<u8> = None;
-    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
@@ -166,7 +161,6 @@ fn cmd_add_spending_limit(
                         .map_err(|_| MsigError::Usage(format!("invalid vault-index: '{raw}'")))?,
                 );
             }
-            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("multisig");
                 return Ok(());
@@ -212,7 +206,7 @@ fn cmd_add_spending_limit(
         member_pubkeys,
         destination_pubkeys,
         create_key,
-        memo.as_deref(),
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
@@ -242,7 +236,6 @@ fn cmd_remove_spending_limit(
     use lexopt::Arg::*;
 
     let mut spending_limit: Option<String> = None;
-    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
@@ -256,7 +249,6 @@ fn cmd_remove_spending_limit(
             Long("spending-limit") => {
                 spending_limit = Some(parse_value(parser, "--spending-limit")?)
             }
-            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("multisig");
                 return Ok(());
@@ -282,7 +274,7 @@ fn cmd_remove_spending_limit(
         ctx.signer.as_ref(),
         &multisig,
         spending_limit,
-        memo.as_deref(),
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
@@ -357,7 +349,6 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
     let mut threshold: Option<u16> = None;
     let mut members: Option<String> = None;
     let mut rent_collector: Option<String> = None;
-    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
@@ -372,7 +363,6 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
             Long("rent-collector") => {
                 rent_collector = Some(parse_value(parser, "--rent-collector")?)
             }
-            Long("memo") => memo = Some(parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("multisig");
                 return Ok(());
@@ -403,7 +393,7 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
             threshold,
             &member_list,
             rent_collector.as_deref(),
-            memo.as_deref(),
+            globals.memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,
@@ -415,7 +405,7 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
             threshold,
             &member_list,
             rent_collector.as_deref(),
-            memo.as_deref(),
+            globals.memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,

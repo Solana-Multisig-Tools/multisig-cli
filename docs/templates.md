@@ -28,6 +28,8 @@ msig template run transfer.toml --recipient <PUBKEY> --lamports 1000000
 msig template run memo.toml --input memo=utf8:reviewed
 ```
 
+Template input names that collide with global flags (such as `memo`) must be passed via `--input KEY=VALUE`. The bare `--memo <TEXT>` form is reserved as the global proposal-memo flag.
+
 `inspect` shows declared inputs, instruction count, and a SHA-256 hash of the file. `validate` compiles the template with real inputs and previews the instructions without creating a proposal.
 
 `bytes` inputs parse hex by default. Prefix with `base64:` for Base64 or `utf8:` for literal UTF-8 bytes.
@@ -124,8 +126,10 @@ data = [
 Run it with:
 
 ```sh
-msig template run memo.toml --memo utf8:reviewed
+msig template run memo.toml --input memo=utf8:reviewed
 ```
+
+(`--memo` itself is reserved as the global proposal-memo flag, so the template input named `memo` must be supplied via `--input`.)
 
 ## Repeating Instructions
 

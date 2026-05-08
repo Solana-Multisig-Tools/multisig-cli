@@ -823,11 +823,9 @@ fn abbreviate(address: &str) -> String {
 fn cmd_vote(globals: GlobalOpts, parser: &mut lexopt::Parser, vote: Vote) -> Result<(), MsigError> {
     use lexopt::Arg::*;
     let mut proposal_ref: Option<String> = None;
-    let mut memo: Option<String> = None;
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
-            Long("memo") => memo = Some(crate::cli::parse_value(parser, "--memo")?),
             Short('h') | Long("help") => {
                 super::help::print_resource_help("proposal");
                 return Ok(());
@@ -859,7 +857,7 @@ fn cmd_vote(globals: GlobalOpts, parser: &mut lexopt::Parser, vote: Vote) -> Res
             &multisig,
             index,
             vote,
-            memo.as_deref(),
+            globals.memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,
@@ -871,7 +869,7 @@ fn cmd_vote(globals: GlobalOpts, parser: &mut lexopt::Parser, vote: Vote) -> Res
             &multisig,
             index,
             vote,
-            memo.as_deref(),
+            globals.memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,
