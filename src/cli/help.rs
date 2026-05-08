@@ -24,6 +24,7 @@ pub fn print_help() {
     println!("  --output <json|table>     Output format");
     println!("  --commitment <LEVEL>      confirmed, finalized, processed");
     println!("  --priority-fee <MICRO>    Priority fee in microlamports/CU");
+    println!("  --memo <TEXT>             UTF-8 memo recorded on-chain with proposals or votes");
     println!("  --dry-run                 Simulate only, don't send");
     println!("  -y, --yes                 Skip confirmation prompts");
     println!("  --no-color                Disable ANSI colors");
@@ -44,6 +45,8 @@ pub fn print_resource_help(resource: &str) {
             println!("                                    Propose a vault spending limit");
             println!("  msig multisig remove-spending-limit <ADDR>");
             println!("                                    Propose removing a spending limit");
+            println!();
+            println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal.");
         }
         "vault" => {
             println!("msig vault — Inspect vault balances\n");
@@ -54,6 +57,8 @@ pub fn print_resource_help(resource: &str) {
             println!("  msig member list                  List members and permissions");
             println!("  msig member add <ADDR> --permissions <P>  Propose adding a member");
             println!("  msig member remove <ADDR>         Propose removing a member");
+            println!();
+            println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal.");
         }
         "proposal" => {
             println!("msig proposal — View and vote on proposals\n");
@@ -82,6 +87,10 @@ pub fn print_resource_help(resource: &str) {
             println!("                                    Cancel a proposal");
             println!("  msig proposal execute <INDEX|PROPOSAL_ADDR>");
             println!("                                    Execute an approved proposal");
+            println!();
+            println!(
+                "  Use --memo <TEXT> to record a UTF-8 note with the vote (approve/reject/cancel)."
+            );
         }
         "transfer" => {
             println!("msig transfer — Create transfer proposals\n");
@@ -89,6 +98,7 @@ pub fn print_resource_help(resource: &str) {
             println!("  msig transfer spl <TOKEN> <AMOUNT> <RECIPIENT>  Transfer SPL token");
             println!();
             println!("  Use --vault-index <N> to transfer from a specific vault (default: 0)");
+            println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal.");
         }
         "template" => {
             println!("msig template — Run fixed vault-transaction templates\n");
@@ -103,6 +113,9 @@ pub fn print_resource_help(resource: &str) {
             println!(
                 "  Bytes/data inputs accept hex by default, plus base64:<DATA> or utf8:<TEXT>."
             );
+            println!();
+            println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal.");
+            println!("  Template inputs whose names collide with global flags must be passed via --input KEY=VALUE.");
         }
         "tx" => {
             println!("msig tx — Inspect and offline-sign transactions\n");
@@ -124,15 +137,22 @@ pub fn print_resource_help(resource: &str) {
             println!(
                 "                                    Sign and/or submit an offline transaction"
             );
+            println!();
+            println!("  Use --memo <TEXT> with `tx create` to record a UTF-8 note with the resulting proposal,");
+            println!("  or with `tx export` to record one with the exported vote (approve/reject/cancel).");
         }
         "program" => {
             println!("msig program — Program upgrade proposals\n");
             println!("  msig program upgrade --program <ADDR> --buffer <ADDR> --spill <ADDR>");
+            println!();
+            println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal.");
         }
         "rent" => {
             println!("msig rent — Rent collector and reclaim\n");
             println!("  msig rent set-collector <ADDR>    Set rent collector address");
             println!("  msig rent reclaim [--last-n <N>]  Reclaim rent from closed accounts");
+            println!();
+            println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal (set-collector).");
         }
         "config" => {
             println!("msig config — Manage configuration\n");

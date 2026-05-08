@@ -212,6 +212,7 @@ fn cmd_run(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigE
         compiled.instructions.clone(),
         vault_index,
         description,
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,

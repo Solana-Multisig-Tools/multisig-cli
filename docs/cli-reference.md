@@ -32,6 +32,7 @@ Configuration is resolved in this order:
 | `--output <json|table>` | Output mode. |
 | `--commitment <LEVEL>` | `processed`, `confirmed`, or `finalized`. |
 | `--priority-fee <MICRO>` | Compute unit price in microlamports. |
+| `--memo <TEXT>` | UTF-8 memo recorded on-chain with proposals or votes. Optional. Ignored on read-only commands. |
 | `--dry-run` | Simulate write commands without sending. |
 | `-y`, `--yes` | Skip confirmation prompts. |
 | `--no-color` | Disable ANSI color. |
@@ -87,6 +88,23 @@ Configuration is resolved in this order:
 | `msig rent set-collector` | Propose a rent collector update. |
 | `msig rent reclaim` | Reclaim rent from closed accounts. |
 | `msig config doctor` | Check local trust and mainnet-readiness settings. |
+
+## Memos
+
+`--memo <TEXT>` is a global flag that attaches an optional UTF-8 string to the on-chain record produced by a write command. It is silently ignored on read-only commands. The flag accepts any position in argv (before, between, or after the subcommand), matching the behavior of `--priority-fee` and `--dry-run`.
+
+Memos land in different Squads v4 instruction args depending on the command:
+
+| Command family | On-chain destination |
+|---|---|
+| `msig multisig create` | `MultisigCreateArgsV2.memo` |
+| `msig multisig set-threshold`, `set-timelock`, `add-spending-limit`, `remove-spending-limit`, `member add`, `member remove`, `rent set-collector` | `ConfigTransactionCreateArgs.memo` |
+| `msig transfer sol`, `transfer spl`, `tx create`, `template run`, `program upgrade` | `VaultTransactionCreateArgs.memo` |
+| `msig proposal approve`, `proposal reject`, `proposal cancel`, `tx export` (vote actions) | `ProposalVoteArgs.memo` |
+
+Memos are encoded in the Borsh `Option<String>` wire format and live inside Squads program state as audit metadata. They are not Solana Memo Program instructions, and they are visible to anyone reading the on-chain account.
+
+Because `--memo` is a reserved global flag, `template run` cannot accept a template input named `memo` as a bare flag. Pass it via `--input memo=<VALUE>` instead.
 
 ## Program
 

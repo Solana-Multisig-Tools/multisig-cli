@@ -218,6 +218,7 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
             message,
             vault_index,
             description,
+            globals.memo.as_deref(),
             &ctx.config,
             globals.dry_run,
             globals.yes,
@@ -286,6 +287,7 @@ fn cmd_create(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
         vec![instruction],
         vault_index,
         description,
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
@@ -547,13 +549,14 @@ fn cmd_export(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
                 action = OfflineAction::parse(&parse_value(parser, "--action")?)?;
             }
             Short('h') | Long("help") => {
-                println!("Usage: msig tx export <INDEX> [--action approve|reject|cancel|execute] [--file FILE]");
+                println!("Usage: msig tx export <INDEX> [--action approve|reject|cancel|execute] [--file FILE] [--memo MEMO]");
                 println!();
                 println!("Export a signable Solana transaction to a .sqds file.");
                 println!();
                 println!("Options:");
                 println!("  --action <ACTION>  Action to sign (default: approve)");
                 println!("  --file <FILE>  Output file path (default: proposal-<INDEX>.sqds)");
+                println!("  --memo <MEMO>  Optional memo recorded with the vote (approve/reject/cancel actions)");
                 return Ok(());
             }
             _ => {
@@ -592,7 +595,15 @@ fn cmd_export(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Ms
         .parse()
         .map_err(|_| MsigError::Config(format!("invalid multisig address: '{resolved}'")))?;
 
-    let export = build_offline_export(&rpc, &cfg, &ms_pubkey, index, member, action)?;
+    let export = build_offline_export(
+        &rpc,
+        &cfg,
+        &ms_pubkey,
+        index,
+        member,
+        action,
+        globals.memo.as_deref(),
+    )?;
 
     let params = offline::ExportParams {
         version: 1,
@@ -648,6 +659,7 @@ fn build_offline_export(
     index: u64,
     member: Pubkey,
     action: OfflineAction,
+    memo: Option<&str>,
 ) -> Result<OfflineExportBuild, MsigError> {
     let ms_addr = multisig.to_string();
     let (proposal_addr, _) = crate::infra::pda::proposal_pda(multisig, index, &cfg.program_id);
@@ -710,6 +722,7 @@ fn build_offline_export(
                 action,
                 &proposal,
                 cfg,
+                memo,
             )?
         }
         OfflineAction::Execute => build_execute_instruction(
@@ -756,6 +769,7 @@ fn build_offline_export(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_vote_instruction(
     multisig: &Pubkey,
     proposal: Pubkey,
@@ -764,6 +778,7 @@ fn build_vote_instruction(
     action: OfflineAction,
     proposal_account: &crate::infra::accounts::proposal::ProposalAccount,
     cfg: &crate::infra::config::Config,
+    memo: Option<&str>,
 ) -> Result<Instruction, MsigError> {
     let vote = action
         .vote()
@@ -802,9 +817,9 @@ fn build_vote_instruction(
         )));
     }
 
-    let mut data = Vec::with_capacity(9);
+    let mut data = Vec::with_capacity(9 + memo.map_or(0, |m| m.len() + 4));
     data.extend_from_slice(&vote.discriminator());
-    data.push(0x00);
+    crate::infra::instruction::borsh_write_option_string(&mut data, memo)?;
 
     Ok(Instruction {
         program_id: cfg.program_id,

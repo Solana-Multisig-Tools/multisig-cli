@@ -79,6 +79,7 @@ fn cmd_set_collector(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result
         ctx.signer.as_ref(),
         &multisig,
         Some(&addr_str),
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,

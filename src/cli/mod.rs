@@ -25,6 +25,7 @@ pub struct GlobalOpts {
     pub output: Option<String>,
     pub yes: bool,
     pub priority_fee: Option<u64>,
+    pub memo: Option<String>,
     pub commitment: Option<String>,
     pub no_color: bool,
     pub dry_run: bool,
@@ -213,6 +214,9 @@ fn preparse_global_opts(args: Vec<String>) -> Result<(GlobalOpts, Vec<String>), 
                     let value = inline_or_next(inline_value, &args, &mut idx, "--priority-fee")?;
                     globals.priority_fee = Some(parse_u64_flag(value, "priority-fee")?);
                 }
+                "memo" => {
+                    globals.memo = Some(inline_or_next(inline_value, &args, &mut idx, "--memo")?);
+                }
                 "commitment" => {
                     globals.commitment = Some(inline_or_next(
                         inline_value,
@@ -322,6 +326,9 @@ pub fn run() -> Result<(), MsigError> {
                     v.parse()
                         .map_err(|_| MsigError::Usage(format!("invalid priority-fee: '{v}'")))?,
                 );
+            }
+            Ok(Some(Long("memo"))) => {
+                globals.memo = Some(parse_value(&mut parser, "--memo")?);
             }
             Ok(Some(Long("commitment"))) => {
                 globals.commitment = Some(parse_value(&mut parser, "--commitment")?)

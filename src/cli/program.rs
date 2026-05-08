@@ -47,6 +47,7 @@ fn cmd_upgrade(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), M
         &buffer_addr,
         &spill_addr,
         vault_index,
+        globals.memo.as_deref(),
         &ctx.config,
         globals.dry_run,
         globals.yes,
