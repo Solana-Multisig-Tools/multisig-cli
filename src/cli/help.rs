@@ -88,7 +88,9 @@ pub fn print_resource_help(resource: &str) {
             println!("  msig proposal execute <INDEX|PROPOSAL_ADDR>");
             println!("                                    Execute an approved proposal");
             println!();
-            println!("  Use --memo <TEXT> to record a UTF-8 note with the vote (approve/reject/cancel).");
+            println!(
+                "  Use --memo <TEXT> to record a UTF-8 note with the vote (approve/reject/cancel)."
+            );
         }
         "transfer" => {
             println!("msig transfer — Create transfer proposals\n");

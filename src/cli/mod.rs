@@ -215,8 +215,7 @@ fn preparse_global_opts(args: Vec<String>) -> Result<(GlobalOpts, Vec<String>), 
                     globals.priority_fee = Some(parse_u64_flag(value, "priority-fee")?);
                 }
                 "memo" => {
-                    globals.memo =
-                        Some(inline_or_next(inline_value, &args, &mut idx, "--memo")?);
+                    globals.memo = Some(inline_or_next(inline_value, &args, &mut idx, "--memo")?);
                 }
                 "commitment" => {
                     globals.commitment = Some(inline_or_next(
