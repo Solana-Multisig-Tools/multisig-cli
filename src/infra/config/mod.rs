@@ -211,6 +211,12 @@ fn apply_project_file_config_with_trust(
             path.display()
         )));
     }
+    if file_cfg.default.truncate_addresses.is_some() {
+        return Err(MsigError::Config(format!(
+            "refusing to auto-load default.truncate_addresses from {}. Set it in user config, MSIG_FULL_ADDRESSES, --full-addresses, or explicitly trust this project with MSIG_TRUST_PROJECT_CONFIG=1.",
+            path.display()
+        )));
+    }
 
     if let Some(ref v) = file_cfg.default.cluster {
         config.cluster = file::resolve_cluster_moniker(v);
@@ -223,9 +229,6 @@ fn apply_project_file_config_with_trust(
     }
     if let Some(v) = file_cfg.default.vault_index {
         config.vault_index = v;
-    }
-    if let Some(v) = file_cfg.default.truncate_addresses {
-        config.truncate_addresses = v;
     }
 
     for (k, v) in &file_cfg.labels {
@@ -307,18 +310,24 @@ mod tests {
     }
 
     #[test]
-    fn untrusted_project_config_can_set_truncate_addresses() {
+    fn untrusted_project_config_rejects_truncate_addresses() {
         let mut cfg = Config::default();
         let mut file_cfg = file::ConfigFile::default();
-        file_cfg.default.truncate_addresses = Some(false);
-        apply_project_file_config_with_trust(
+        file_cfg.default.truncate_addresses = Some(true);
+
+        let err = match apply_project_file_config_with_trust(
             &mut cfg,
             &file_cfg,
             std::path::Path::new(".msig.toml"),
             false,
-        )
-        .unwrap_or_else(|e| panic!("{e}"));
-        assert!(!cfg.truncate_addresses);
+        ) {
+            Ok(_) => panic!("untrusted project config must not set truncate_addresses"),
+            Err(err) => err,
+        };
+
+        let msg = format!("{err}");
+        assert!(msg.contains("truncate_addresses"));
+        assert!(msg.contains("MSIG_TRUST_PROJECT_CONFIG=1"));
     }
 
     #[test]
@@ -423,6 +432,7 @@ mod tests {
         file_cfg.default.keypair = Some("/tmp/id.json".to_string());
         file_cfg.default.priority_fee = Some(1000);
         file_cfg.default.program_id = Some(program_id.to_string());
+        file_cfg.default.truncate_addresses = Some(false);
 
         apply_project_file_config_with_trust(
             &mut cfg,
@@ -436,5 +446,6 @@ mod tests {
         assert_eq!(cfg.keypair.as_deref(), Some("/tmp/id.json"));
         assert_eq!(cfg.priority_fee, 1000);
         assert_eq!(cfg.program_id, program_id);
+        assert!(!cfg.truncate_addresses);
     }
 }
