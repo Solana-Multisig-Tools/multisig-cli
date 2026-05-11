@@ -16,8 +16,8 @@ CLI for Squads Multisig v4 on Solana.
 ## Install
 
 ```sh
-git clone https://github.com/Solana-Multisig-Tools/v4-cli.git
-cd v4-cli
+git clone https://github.com/Solana-Multisig-Tools/multisig-cli.git
+cd multisig-cli
 cargo install --path . --locked
 msig --version
 ```
@@ -120,7 +120,7 @@ Add the dependency with default features off so the Ledger transport, the binary
 
 ```toml
 [dependencies]
-msig = { git = "https://github.com/Solana-Multisig-Tools/v4-cli", default-features = false, features = ["instruction-builder"] }
+msig = { git = "https://github.com/Solana-Multisig-Tools/multisig-cli", default-features = false, features = ["instruction-builder"] }
 ```
 
 The `instruction-builder` feature pulls in `solana-instruction` and exposes the `msig::instruction_builder` module, which re-exports the pure v4 data types from `msig::domain` and provides Solana-typed instruction builders that return `solana_instruction::Instruction`:
