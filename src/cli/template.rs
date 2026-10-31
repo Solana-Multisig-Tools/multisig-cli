@@ -289,7 +289,11 @@ fn file_sha256(path: &std::path::Path) -> Result<String, MsigError> {
     })?;
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect())
 }
 
 fn render_template_manifest(manifest: &template::TemplateManifest, checksum: &str) {
@@ -389,4 +393,24 @@ fn render_template_preview(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_sha256_is_lowercase_hex_digest() {
+        let path =
+            std::env::temp_dir().join(format!("msig-template-sha256-{}.toml", std::process::id()));
+        std::fs::write(&path, b"abc").unwrap_or_else(|e| panic!("{e}"));
+
+        let digest = file_sha256(&path).unwrap_or_else(|e| panic!("{e}"));
+
+        assert_eq!(
+            digest,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        let _ = std::fs::remove_file(path);
+    }
 }

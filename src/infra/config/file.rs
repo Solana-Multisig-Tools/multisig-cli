@@ -452,6 +452,30 @@ mod tests {
     }
 
     #[test]
+    fn test_config_round_trips_through_toml() {
+        let mut cfg = ConfigFile::default();
+        cfg.default.cluster = Some("devnet".into());
+        cfg.default.vault_index = Some(3);
+        cfg.default.priority_fee = Some(5_000);
+        cfg.default.truncate_addresses = Some(false);
+        cfg.labels.insert(
+            "treasury".into(),
+            "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf".into(),
+        );
+
+        let serialized = toml::to_string_pretty(&cfg).unwrap_or_else(|e| panic!("{e}"));
+        let parsed: ConfigFile = toml::from_str(&serialized).unwrap_or_else(|e| panic!("{e}"));
+
+        assert_eq!(parsed.default.cluster.as_deref(), Some("devnet"));
+        assert_eq!(parsed.default.vault_index, Some(3));
+        assert_eq!(parsed.default.priority_fee, Some(5_000));
+        assert_eq!(parsed.default.truncate_addresses, Some(false));
+        assert_eq!(parsed.default.keypair, None);
+        assert_eq!(parsed.labels, cfg.labels);
+        assert!(parsed.tokens.is_empty());
+    }
+
+    #[test]
     fn test_load_nonexistent_file() {
         let result = load_config_file(Path::new("/nonexistent/path/config.toml"));
         assert!(result.is_ok());
