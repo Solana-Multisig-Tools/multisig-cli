@@ -72,9 +72,7 @@ wildcards = "deny"
 highlight = "all"
 deny = []
 skip = [
-  { crate = "hashbrown@0.16.1", reason = "ratatui 0.30 currently lags toml's hashbrown version" },
-  { crate = "heck@0.4.1", reason = "ledger-apdu's snafu stack has not moved to heck 0.5" },
-  { crate = "syn@1.0.109", reason = "ledger-apdu's snafu stack still uses syn 1" },
+  { crate = "syn@2.0.119", reason = "derive_more (crossterm), strum (ratatui), snafu and thiserror 1 (ledger) have not moved to syn 3" },
   { crate = "thiserror@1.0.69", reason = "ledger-transport-hid still uses thiserror 1" },
   { crate = "thiserror-impl@1.0.69", reason = "paired with thiserror 1 from ledger-transport-hid" },
   { crate = "windows-sys@0.52.0", reason = "ring uses windows-sys 0.52 while crossterm/rustix use newer windows-sys" },
