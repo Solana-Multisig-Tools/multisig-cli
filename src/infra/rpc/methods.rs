@@ -63,6 +63,17 @@ impl SolanaRpcClient {
         Ok((result.value.blockhash, result.value.last_valid_block_height))
     }
 
+    pub fn get_minimum_balance_for_rent_exemption(
+        &self,
+        data_len: usize,
+    ) -> Result<u64, MsigError> {
+        let params = serde_json::json!([data_len, { "commitment": self.commitment() }]);
+        let resp: RpcResponse<u64> =
+            self.call_raw("getMinimumBalanceForRentExemption", Some(params))?;
+        resp.result
+            .ok_or_else(|| MsigError::Rpc(RpcError::Connection("missing result".into())))
+    }
+
     pub fn send_transaction(&self, base64_tx: &str) -> Result<String, MsigError> {
         let params = serde_json::json!([base64_tx, { "encoding": "base64", "skipPreflight": false, "preflightCommitment": self.commitment() }]);
         let resp: RpcResponse<String> = self.call_raw("sendTransaction", Some(params))?;

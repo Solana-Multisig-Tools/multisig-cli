@@ -32,6 +32,10 @@ pub struct InstructionSummary {
     pub data_hex: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decoded: Option<String>,
+    /// Review warnings raised by the decoder (e.g. authority handed outside
+    /// the multisig). Omitted from JSON when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub warnings: Vec<String>,
 }
 
 /// Config transaction info.
