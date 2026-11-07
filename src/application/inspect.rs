@@ -1,5 +1,9 @@
+use std::cell::OnceCell;
+use std::collections::HashMap;
+
 use solana_pubkey::Pubkey;
 
+use super::vote_account;
 use crate::domain::multisig::{MultisigInfo, TokenBalance, VaultBalances};
 use crate::domain::proposal::{ProposalDetail, ProposalSummary, TransactionType};
 use crate::domain::transaction::{AccountRef, ConfigTxInfo, InstructionSummary, VaultTxInfo};
@@ -167,7 +171,8 @@ pub fn get_proposal_detail(
     if let Some(tx_acct) = tx_account {
         if let Ok(vtx) = VaultTransactionAccount::parse(&tx_acct.data) {
             transaction_type = TransactionType::Vault;
-            let mut instructions = decode_instructions(rpc, &vtx, truncate)?;
+            let mut instructions =
+                decode_instructions(rpc, &vtx, multisig_addr, program_id, truncate)?;
             resolve_token_amounts(rpc, &mut instructions, &vtx.message, truncate);
             vault_tx = Some(VaultTxInfo {
                 creator: vtx.creator,
@@ -450,11 +455,15 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
 fn decode_instructions(
     rpc: &dyn RpcProvider,
     vtx: &VaultTransactionAccount,
+    multisig_addr: &Pubkey,
+    squads_program_id: &Pubkey,
     truncate: bool,
 ) -> Result<Vec<InstructionSummary>, MsigError> {
     let msg = &vtx.message;
     let resolved_keys = resolve_message_account_keys(rpc, msg)?;
     let num_keys = resolved_keys.len();
+    // Derived at most once per proposal, and only if a Vote instruction needs it.
+    let vaults: OnceCell<HashMap<Pubkey, u8>> = OnceCell::new();
 
     Ok(vtx
         .message
@@ -489,8 +498,20 @@ fn decode_instructions(
                 .collect();
 
             let data_hex = hex_encode(&ix.data);
-            let decoded =
-                try_decode_instruction(&program_id, &ix.data, &accounts, num_keys, truncate);
+            let (decoded, warnings) = if program_id == vote_account::VOTE_PROGRAM_ID {
+                let keys: Vec<Pubkey> = accounts.iter().map(|a| a.address).collect();
+                let vaults = vaults.get_or_init(|| {
+                    vote_account::vault_addresses(multisig_addr, squads_program_id)
+                });
+                let vote =
+                    vote_account::decode_vote_instruction(&ix.data, &keys, Some(vaults), truncate);
+                (Some(vote.text), vote.warnings)
+            } else {
+                (
+                    try_decode_instruction(&program_id, &ix.data, &accounts, num_keys, truncate),
+                    Vec::new(),
+                )
+            };
 
             InstructionSummary {
                 program_id,
@@ -498,6 +519,7 @@ fn decode_instructions(
                 accounts,
                 data_hex,
                 decoded,
+                warnings,
             }
         })
         .collect())
@@ -1020,6 +1042,7 @@ fn identify_program(program_id: &Pubkey, truncate: bool) -> String {
         "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" => "ATA".to_string(),
         "BPFLoaderUpgradeab1e11111111111111111111111" => "BPFLoader".to_string(),
         "ComputeBudget111111111111111111111111111111" => "ComputeBudget".to_string(),
+        "Vote111111111111111111111111111111111111111" => "Vote".to_string(),
         "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf" => "SquadsV4".to_string(),
         _ => format_addr(&s, truncate),
     }

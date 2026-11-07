@@ -9,6 +9,7 @@ pub mod template;
 pub mod transfer;
 pub mod tx;
 pub mod vault;
+pub mod vote_account;
 
 use crate::application::context::CommandContext;
 use crate::error::MsigError;
@@ -387,6 +388,7 @@ pub fn run() -> Result<(), MsigError> {
         "tx" => tx::run(globals, parser),
         "program" => program::run(globals, parser),
         "rent" => rent::run(globals, parser),
+        "vote-account" => vote_account::run(globals, parser),
         "tui" => run_tui_command(globals),
         _ => Err(MsigError::Usage(format!(
             "unknown command: '{resource}'. Run 'msig --help'."

@@ -9,3 +9,4 @@ pub mod rent;
 pub mod template;
 pub mod transfer;
 pub mod vault_tx;
+pub mod vote_account;

@@ -13,6 +13,7 @@ pub fn print_help() {
     println!("  tx        Inspect and export transactions");
     println!("  program   Program upgrade proposals");
     println!("  rent      Rent collector and reclaim");
+    println!("  vote-account  Vote account withdrawer operations from a vault");
     println!("  config    Manage configuration");
     println!();
     println!("GLOBAL OPTIONS:");
@@ -153,6 +154,47 @@ pub fn print_resource_help(resource: &str) {
             println!("  msig rent reclaim [--last-n <N>]  Reclaim rent from closed accounts");
             println!();
             println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal (set-collector).");
+        }
+        "vote-account" => {
+            println!("msig vote-account — Vote account withdrawer operations from a vault\n");
+            println!("  msig vote-account show <VOTE_ACCOUNT>");
+            println!("                                    Show balance, authorities, commission and collectors");
+            println!("  msig vote-account withdraw <VOTE_ACCOUNT> <RECIPIENT> (--amount <SOL> | --all | --close)");
+            println!("                                    Propose a withdrawal. --all keeps the rent-exempt");
+            println!(
+                "                                    minimum; --close withdraws the full balance"
+            );
+            println!("  msig vote-account set-commission <VOTE_ACCOUNT> <PERCENT>");
+            println!(
+                "                                    Propose a commission change (0-100; inflation"
+            );
+            println!("                                    rewards only on V4 vote accounts)");
+            println!("  msig vote-account set-voter <VOTE_ACCOUNT> <NEW_VOTER>");
+            println!("                                    Propose a new authorized voter (refused when a BLS");
+            println!("                                    key is registered)");
+            println!("  msig vote-account set-withdrawer <VOTE_ACCOUNT> <NEW_WITHDRAWER> [--allow-external-authority]");
+            println!("                                    Propose a new authorized withdrawer");
+            println!("  msig vote-account set-collector <VOTE_ACCOUNT> <inflation-rewards|block-revenue> <COLLECTOR>");
+            println!("                 [--allow-external-authority]");
+            println!("                                    Propose a new commission collector (SIMD-0232)");
+            println!();
+            println!(
+                "  Proposal commands require an explicit --vault-index <N>: the vault that is the"
+            );
+            println!(
+                "  vote account's authorized withdrawer. Unlike `tx create`, there is no default."
+            );
+            println!(
+                "  Each command creates one proposal; review it with `msig proposal show <INDEX>`."
+            );
+            println!();
+            println!("  --allow-external-authority  Allow a withdrawer or collector outside this multisig's");
+            println!("                              vaults (shown in your signing preview; approvers see a");
+            println!("                              WARNING in `proposal show`)");
+            println!("  --allow-simulation-failure  Propose even if the inner instruction fails simulation now");
+            println!("                              (e.g. commission changes late in the epoch)");
+            println!();
+            println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal.");
         }
         "config" => {
             println!("msig config — Manage configuration\n");

@@ -447,6 +447,12 @@ fn render_proposal_detail(
                 "        accounts: {}, data: {data_bytes} bytes",
                 ix.accounts.len()
             );
+            for warning in &ix.warnings {
+                println!(
+                    "        {}",
+                    table::colored(&format!("WARNING: {warning}"), "1;33")
+                );
+            }
             if verbose {
                 println!("        account metas:");
                 for acct in &ix.accounts {

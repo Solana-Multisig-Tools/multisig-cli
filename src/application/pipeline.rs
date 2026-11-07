@@ -746,8 +746,17 @@ fn decode_known_program_instruction(ix: &Instruction) -> Option<String> {
         "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" => decode_ata_instruction(ix),
         "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
         | "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo" => decode_memo_instruction(ix),
+        "Vote111111111111111111111111111111111111111" => Some(decode_vote_instruction(ix)),
         _ => None,
     }
+}
+
+/// The preview has no multisig context, so vault-based warnings are only
+/// raised by `proposal show`; the vote-account commands refuse those targets
+/// before proposing unless explicitly allowed.
+fn decode_vote_instruction(ix: &Instruction) -> String {
+    let accounts: Vec<Pubkey> = ix.accounts.iter().map(|meta| meta.pubkey).collect();
+    super::vote_account::decode_vote_instruction(&ix.data, &accounts, None, false).text
 }
 
 fn decode_system_instruction(ix: &Instruction) -> Option<String> {
@@ -834,6 +843,7 @@ fn identify_program(program_id: &Pubkey, truncate: bool) -> String {
         "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr" => "Memo".to_string(),
         "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo" => "Memo".to_string(),
         "ComputeBudget111111111111111111111111111111" => "ComputeBudget".to_string(),
+        "Vote111111111111111111111111111111111111111" => "Vote".to_string(),
         other => format_addr(other, truncate),
     }
 }
