@@ -40,9 +40,13 @@ Custom instructions have the same signer boundary as templates: only the active 
 
 Vault messages that use address lookup tables are supported during proposal inspection, simulation, and execution. The CLI fetches each lookup table account, verifies it is owned by the Solana address lookup table program, resolves referenced indexes, and includes the resolved remaining accounts in Squads execution.
 
+## Vote Account Commands
+
+`msig vote-account` proposal commands build hand-encoded Vote program instructions whose only signer is the active Squads vault, which must already be the vote account's authorized withdrawer. Before proposing, they check the vote account owner and withdrawer on chain, simulate the inner instruction on its own, and refuse to hand the withdrawer authority or a commission collector to a key outside the multisig's vaults unless `--allow-external-authority` is passed. With the flag, the proposer sees the fact in the local signing preview; it is not stored on chain, so other approvers rely on the `WARNING` line that `msig proposal show` prints for such instructions. See [validator operations](validator-operations.md).
+
 ## Proposal Review And Simulation
 
-`msig proposal show <INDEX>` decodes each vault instruction in text output by default. `--verbose` expands signer/writable account metas and raw instruction bytes.
+`msig proposal show <INDEX>` decodes each vault instruction in text output by default. `--verbose` expands signer/writable account metas and raw instruction bytes. Vote program instructions carry review warnings when a withdrawer authority or collector is set outside the proposal multisig's 256 vaults, or when the instruction cannot be decoded; JSON output includes them as `warnings` on the instruction when present.
 
 `msig proposal simulate <INDEX>` builds the same Squads execute instruction as `proposal execute`, simulates it through the configured RPC, and requests post-simulation account snapshots for all execution accounts. Text output highlights changed accounts, SOL lamport deltas, and SPL Token or Token-2022 balance deltas.
 

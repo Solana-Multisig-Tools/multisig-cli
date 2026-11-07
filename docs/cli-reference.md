@@ -87,7 +87,15 @@ Configuration is resolved in this order:
 | `msig program upgrade` | Create a program upgrade proposal. |
 | `msig rent set-collector` | Propose a rent collector update. |
 | `msig rent reclaim` | Reclaim rent from closed accounts. |
+| `msig vote-account show` | Show a vote account's balance, authorities, commission, and collectors. |
+| `msig vote-account withdraw` | Propose a vote account withdrawal (`--amount`, `--all`, or `--close`). Requires `--vault-index`. |
+| `msig vote-account set-commission` | Propose a vote account commission change. Requires `--vault-index`. |
+| `msig vote-account set-voter` | Propose a new authorized voter. Requires `--vault-index`. |
+| `msig vote-account set-withdrawer` | Propose a new authorized withdrawer. Requires `--vault-index`. |
+| `msig vote-account set-collector` | Propose a new inflation-rewards or block-revenue collector. Requires `--vault-index`. |
 | `msig config doctor` | Check local trust and mainnet-readiness settings. |
+
+The `vote-account` proposal commands require the global `--vault-index` to be passed explicitly; unlike `tx create` they do not fall back to the configured default. See [validator operations](validator-operations.md).
 
 ## Memos
 
@@ -99,7 +107,7 @@ Memos land in different Squads v4 instruction args depending on the command:
 |---|---|
 | `msig multisig create` | `MultisigCreateArgsV2.memo` |
 | `msig multisig set-threshold`, `set-timelock`, `add-spending-limit`, `remove-spending-limit`, `member add`, `member remove`, `rent set-collector` | `ConfigTransactionCreateArgs.memo` |
-| `msig transfer sol`, `transfer spl`, `tx create`, `template run`, `program upgrade` | `VaultTransactionCreateArgs.memo` |
+| `msig transfer sol`, `transfer spl`, `tx create`, `template run`, `program upgrade`, `vote-account` proposal commands | `VaultTransactionCreateArgs.memo` |
 | `msig proposal approve`, `proposal reject`, `proposal cancel`, `tx export` (vote actions) | `ProposalVoteArgs.memo` |
 
 Memos are encoded in the Borsh `Option<String>` wire format and live inside Squads program state as audit metadata. They are not Solana Memo Program instructions, and they are visible to anyone reading the on-chain account.

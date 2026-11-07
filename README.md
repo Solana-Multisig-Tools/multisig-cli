@@ -10,6 +10,7 @@ CLI for Squads Multisig v4 on Solana.
 - Show decoded proposal instructions and verbose account metas before signing.
 - Simulate proposal execution and surface SOL/token balance diffs.
 - Create transfer, member, config, program-upgrade, rent, template, and raw vault transaction proposals.
+- Run vote account withdrawer operations from a vault: withdraw, commission, voter, withdrawer, and collectors. See [validator operations](docs/validator-operations.md).
 - Sign with a keypair, Ledger, or offline `.sqds` workflow.
 - Print the same Solana message hash that Ledger blind signing displays.
 
