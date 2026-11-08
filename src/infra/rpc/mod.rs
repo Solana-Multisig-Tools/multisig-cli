@@ -29,6 +29,7 @@ pub trait RpcProvider {
     ) -> Result<Vec<Option<AccountData>>, MsigError>;
     fn get_latest_blockhash(&self) -> Result<(String, u64), MsigError>;
     fn get_minimum_balance_for_rent_exemption(&self, data_len: usize) -> Result<u64, MsigError>;
+    fn get_stake_minimum_delegation(&self) -> Result<u64, MsigError>;
     fn send_transaction(&self, base64_tx: &str) -> Result<String, MsigError>;
     fn simulate_transaction(&self, base64_tx: &str) -> Result<types::SimulationResult, MsigError>;
     fn get_signature_statuses(
@@ -209,6 +210,9 @@ impl RpcProvider for SolanaRpcClient {
     }
     fn get_minimum_balance_for_rent_exemption(&self, data_len: usize) -> Result<u64, MsigError> {
         self.get_minimum_balance_for_rent_exemption(data_len)
+    }
+    fn get_stake_minimum_delegation(&self) -> Result<u64, MsigError> {
+        self.get_stake_minimum_delegation()
     }
     fn send_transaction(&self, base64_tx: &str) -> Result<String, MsigError> {
         self.send_transaction(base64_tx)

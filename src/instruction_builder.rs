@@ -163,6 +163,7 @@ pub fn vault_transaction_create(
         transaction,
         creator,
         vault_index,
+        0,
         transaction_message,
         memo,
     )

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use solana_pubkey::Pubkey;
 
-use super::vote_account;
+use super::{stake_account, validator_common, vote_account};
 use crate::domain::multisig::{MultisigInfo, TokenBalance, VaultBalances};
 use crate::domain::proposal::{ProposalDetail, ProposalSummary, TransactionType};
 use crate::domain::transaction::{AccountRef, ConfigTxInfo, InstructionSummary, VaultTxInfo};
@@ -452,6 +452,14 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
+/// Vote and Stake program decoders, which flag authorities outside the vaults.
+type ValidatorDecoder = fn(
+    &[u8],
+    &[Pubkey],
+    Option<&HashMap<Pubkey, u8>>,
+    bool,
+) -> validator_common::DecodedInstruction;
+
 fn decode_instructions(
     rpc: &dyn RpcProvider,
     vtx: &VaultTransactionAccount,
@@ -462,7 +470,7 @@ fn decode_instructions(
     let msg = &vtx.message;
     let resolved_keys = resolve_message_account_keys(rpc, msg)?;
     let num_keys = resolved_keys.len();
-    // Derived at most once per proposal, and only if a Vote instruction needs it.
+    // Derived at most once per proposal, and only if a Vote or Stake instruction needs it.
     let vaults: OnceCell<HashMap<Pubkey, u8>> = OnceCell::new();
 
     Ok(vtx
@@ -498,14 +506,20 @@ fn decode_instructions(
                 .collect();
 
             let data_hex = hex_encode(&ix.data);
-            let (decoded, warnings) = if program_id == vote_account::VOTE_PROGRAM_ID {
+            let validator_decoder = if program_id == vote_account::VOTE_PROGRAM_ID {
+                Some(vote_account::decode_vote_instruction as ValidatorDecoder)
+            } else if program_id == stake_account::STAKE_PROGRAM_ID {
+                Some(stake_account::decode_stake_instruction as ValidatorDecoder)
+            } else {
+                None
+            };
+            let (decoded, warnings) = if let Some(decode) = validator_decoder {
                 let keys: Vec<Pubkey> = accounts.iter().map(|a| a.address).collect();
                 let vaults = vaults.get_or_init(|| {
-                    vote_account::vault_addresses(multisig_addr, squads_program_id)
+                    validator_common::vault_addresses(multisig_addr, squads_program_id)
                 });
-                let vote =
-                    vote_account::decode_vote_instruction(&ix.data, &keys, Some(vaults), truncate);
-                (Some(vote.text), vote.warnings)
+                let decoded = decode(&ix.data, &keys, Some(vaults), truncate);
+                (Some(decoded.text), decoded.warnings)
             } else {
                 (
                     try_decode_instruction(&program_id, &ix.data, &accounts, num_keys, truncate),
@@ -1043,6 +1057,7 @@ fn identify_program(program_id: &Pubkey, truncate: bool) -> String {
         "BPFLoaderUpgradeab1e11111111111111111111111" => "BPFLoader".to_string(),
         "ComputeBudget111111111111111111111111111111" => "ComputeBudget".to_string(),
         "Vote111111111111111111111111111111111111111" => "Vote".to_string(),
+        "Stake11111111111111111111111111111111111111" => "Stake".to_string(),
         "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf" => "SquadsV4".to_string(),
         _ => format_addr(&s, truncate),
     }

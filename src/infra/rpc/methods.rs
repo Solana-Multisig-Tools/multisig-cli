@@ -74,6 +74,15 @@ impl SolanaRpcClient {
             .ok_or_else(|| MsigError::Rpc(RpcError::Connection("missing result".into())))
     }
 
+    pub fn get_stake_minimum_delegation(&self) -> Result<u64, MsigError> {
+        let params = serde_json::json!([{ "commitment": self.commitment() }]);
+        let resp: RpcResponse<ContextValue<u64>> =
+            self.call_raw("getStakeMinimumDelegation", Some(params))?;
+        resp.result
+            .map(|result| result.value)
+            .ok_or_else(|| MsigError::Rpc(RpcError::Connection("missing result".into())))
+    }
+
     pub fn send_transaction(&self, base64_tx: &str) -> Result<String, MsigError> {
         let params = serde_json::json!([base64_tx, { "encoding": "base64", "skipPreflight": false, "preflightCommitment": self.commitment() }]);
         let resp: RpcResponse<String> = self.call_raw("sendTransaction", Some(params))?;
