@@ -176,7 +176,7 @@ fn required_signers_from_message(message: &[u8]) -> Result<Vec<Pubkey>, MsigErro
     Ok(signers)
 }
 
-fn extra_signer_pubkey(keypair_bytes: &[u8; 64]) -> Result<Pubkey, MsigError> {
+pub(crate) fn extra_signer_pubkey(keypair_bytes: &[u8; 64]) -> Result<Pubkey, MsigError> {
     let secret_arr = <&[u8; 32]>::try_from(&keypair_bytes[..32])
         .map_err(|_| MsigError::Signing("invalid extra signer secret key".into()))?;
     let stored_pubkey = <[u8; 32]>::try_from(&keypair_bytes[32..64])
@@ -189,6 +189,36 @@ fn extra_signer_pubkey(keypair_bytes: &[u8; 64]) -> Result<Pubkey, MsigError> {
         ));
     }
     Ok(Pubkey::from(derived_pubkey))
+}
+
+/// Order extra signer keypairs the way `build_message` lays out the signer
+/// keys of `instructions` (writable signers, then read-only signers, each
+/// sorted by key), which is the order `validate_signer_order` requires.
+/// Compute-budget instructions added later carry no accounts, so they do not
+/// change this order. Fails if a keypair is not a non-fee-payer signer.
+pub(crate) fn order_extra_signers(
+    instructions: &[Instruction],
+    payer: &Pubkey,
+    extra_signers: Vec<Zeroizing<[u8; 64]>>,
+) -> Result<Vec<Zeroizing<[u8; 64]>>, MsigError> {
+    let message = build_message(instructions, payer, &[0u8; 32])?;
+    let required = required_signers_from_message(&message)?;
+    let mut positioned = Vec::with_capacity(extra_signers.len());
+    for keypair in extra_signers {
+        let pubkey = extra_signer_pubkey(&keypair)?;
+        let position = required
+            .iter()
+            .skip(1)
+            .position(|key| *key == pubkey)
+            .ok_or_else(|| {
+                MsigError::Signing(format!(
+                    "extra signer {pubkey} is not a required signer of this transaction"
+                ))
+            })?;
+        positioned.push((position, keypair));
+    }
+    positioned.sort_by_key(|(position, _)| *position);
+    Ok(positioned.into_iter().map(|(_, keypair)| keypair).collect())
 }
 
 fn validate_signer_order(
@@ -705,7 +735,9 @@ fn build_instruction_display(ix: &Instruction, truncate: bool) -> InstructionDis
         program: identify_program(&ix.program_id, truncate),
         accounts_count: ix.accounts.len(),
         data_len: ix.data.len(),
-        decoded: decode_instruction_name(ix),
+        // Review instructions can be decoded from on-chain vault messages
+        // (for example a memo), so the text is sanitized before display.
+        decoded: decode_instruction_name(ix).map(|text| crate::sanitize::sanitize_display(&text)),
     }
 }
 
@@ -1135,6 +1167,61 @@ mod tests {
         let signers = required_signers_from_message(&msg).unwrap_or_else(|e| panic!("{e}"));
 
         assert_eq!(signers, vec![payer, extra_signer]);
+    }
+
+    #[test]
+    fn extra_signers_are_ordered_like_the_execute_message() {
+        use crate::application::proposal::tests::{
+            external_signer_fixture, keypair_pubkey, test_keypair,
+        };
+        use crate::application::proposal::{plan_vault_transaction_execute, ExternalSignerMode};
+
+        let writable = test_keypair(11);
+        let readonly_a = test_keypair(12);
+        let readonly_b = test_keypair(13);
+        let w = keypair_pubkey(&writable);
+        let ra = keypair_pubkey(&readonly_a);
+        let rb = keypair_pubkey(&readonly_b);
+        let payer = Pubkey::from([40u8; 32]);
+        let f = external_signer_fixture(&[w], &[ra, rb]);
+
+        // Supplied in an order that is not the message order.
+        let supplied = vec![readonly_b, writable, readonly_a];
+        let keys: Vec<Pubkey> = supplied.iter().map(|kp| keypair_pubkey(kp)).collect();
+        let plan = plan_vault_transaction_execute(
+            &crate::application::proposal::tests::NoRpc,
+            crate::infra::pda::PROGRAM_ID,
+            f.multisig,
+            f.proposal,
+            f.transaction,
+            payer,
+            &f.vtx,
+            ExternalSignerMode::Supplied {
+                keys: &keys,
+                flag: "--extra-signer",
+            },
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let instructions = vec![plan.instruction];
+        let message =
+            build_message(&instructions, &payer, &[4u8; 32]).unwrap_or_else(|e| panic!("{e}"));
+
+        // As supplied, the pipeline refuses the order.
+        assert!(validate_signer_order(&message, &payer, &supplied).is_err());
+
+        let ordered =
+            order_extra_signers(&instructions, &payer, supplied).unwrap_or_else(|e| panic!("{e}"));
+        let mut readonly_sorted = vec![ra, rb];
+        readonly_sorted.sort();
+        let mut expected = vec![payer, w];
+        expected.extend(readonly_sorted);
+        let required =
+            validate_signer_order(&message, &payer, &ordered).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(required, expected);
+
+        // A keypair that the message does not require is refused.
+        let stranger = test_keypair(14);
+        assert!(order_extra_signers(&instructions, &payer, vec![stranger]).is_err());
     }
 
     #[test]

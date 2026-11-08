@@ -14,12 +14,11 @@ pub fn run(globals: GlobalOpts, mut parser: lexopt::Parser) -> Result<(), MsigEr
     let verb = next_verb(&mut parser, "vote-account")?;
     match verb.as_str() {
         "show" => cmd_show(globals, &mut parser),
-        "withdraw" | "set-commission" | "set-voter" | "set-withdrawer" | "set-collector" => {
-            match parse_proposal_args(&verb, &mut parser)? {
-                Some(args) => cmd_propose(globals, args),
-                None => Ok(()),
-            }
-        }
+        "withdraw" | "set-commission" | "set-voter" | "set-withdrawer" | "set-collector"
+        | "set-identity" => match parse_proposal_args(&verb, &mut parser)? {
+            Some(args) => cmd_propose(globals, args),
+            None => Ok(()),
+        },
         other => Err(MsigError::Usage(format!(
             "unknown vote-account command: '{other}'"
         ))),
@@ -150,6 +149,9 @@ enum VerbArgs {
         kind: CollectorKind,
         collector: String,
     },
+    SetIdentity {
+        new_identity: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -259,6 +261,9 @@ fn parse_proposal_args(
                 collector: next(),
             }
         }
+        "set-identity" => VerbArgs::SetIdentity {
+            new_identity: next(),
+        },
         other => {
             return Err(MsigError::Usage(format!(
                 "unknown vote-account command: '{other}'"
@@ -326,6 +331,9 @@ fn cmd_propose(globals: GlobalOpts, args: ProposalArgs) -> Result<(), MsigError>
             kind,
             collector: resolve_pubkey(&collector, labels, "collector")?,
         },
+        VerbArgs::SetIdentity { new_identity } => VoteOperation::SetIdentity {
+            new_identity: resolve_pubkey(&new_identity, labels, "validator identity")?,
+        },
     };
 
     let request = VoteProposalRequest {
@@ -348,7 +356,7 @@ fn cmd_propose(globals: GlobalOpts, args: ProposalArgs) -> Result<(), MsigError>
     )?;
 
     if is_json {
-        json::print_json(&serde_json::json!({
+        let mut out = serde_json::json!({
             "action": format!("vote_account_{}", args.verb.replace('-', "_")),
             "vote_account": vote.to_string(),
             "transaction_index": result.transaction_index,
@@ -357,7 +365,12 @@ fn cmd_propose(globals: GlobalOpts, args: ProposalArgs) -> Result<(), MsigError>
             "transaction": result.transaction.to_string(),
             "proposal": result.proposal.to_string(),
             "signature": result.signature,
-        }));
+        });
+        if let VoteOperation::SetIdentity { new_identity } = operation {
+            // The new identity must co-sign `proposal execute --extra-signer`.
+            out["execute_extra_signers"] = serde_json::json!([new_identity.to_string()]);
+        }
+        json::print_json(&out);
     }
     Ok(())
 }
@@ -473,6 +486,28 @@ mod tests {
         );
         usage_err("set-collector", &["VOTE", "fees", "C"]);
         usage_err("set-collector", &["VOTE", "C"]);
+    }
+
+    #[test]
+    fn set_identity_parses_two_positionals() {
+        let args = parsed("set-identity", &["VOTE", "NEW_ID"]);
+        assert_eq!(args.vote_account, "VOTE");
+        assert_eq!(
+            args.args,
+            VerbArgs::SetIdentity {
+                new_identity: "NEW_ID".into()
+            }
+        );
+        let args = parsed(
+            "set-identity",
+            &["VOTE", "NEW_ID", "--allow-simulation-failure"],
+        );
+        assert!(args.allow_simulation_failure);
+        usage_err("set-identity", &["VOTE"]);
+        usage_err(
+            "set-identity",
+            &["VOTE", "NEW_ID", "--allow-external-authority"],
+        );
     }
 
     #[test]

@@ -732,6 +732,7 @@ fn build_offline_export(
             )?
         }
         OfflineAction::Execute => build_execute_instruction(
+            rpc,
             multisig,
             proposal_addr,
             tx_addr,
@@ -838,8 +839,14 @@ fn build_vote_instruction(
     })
 }
 
+/// Build the execute instruction for an offline `.sqds` export. Vault
+/// transactions go through the same planner as `proposal execute` (address
+/// lookup tables included). Offline co-signing by keys outside the multisig
+/// is not supported: a vault message that needs any signer besides its vault
+/// and ephemeral signer PDAs is refused here, before any file is written.
 #[allow(clippy::too_many_arguments)]
 fn build_execute_instruction(
+    rpc: &dyn crate::infra::rpc::RpcProvider,
     multisig: &Pubkey,
     proposal: Pubkey,
     transaction: Pubkey,
@@ -849,6 +856,8 @@ fn build_execute_instruction(
     proposal_account: &crate::infra::accounts::proposal::ProposalAccount,
     cfg: &crate::infra::config::Config,
 ) -> Result<Instruction, MsigError> {
+    use crate::application::proposal::{self as app_proposal, ExternalSignerMode};
+
     if !proposal_account.status.is_approved() {
         return Err(MsigError::Transaction(format!(
             "proposal #{index} is '{}', must be Approved to execute",
@@ -856,48 +865,48 @@ fn build_execute_instruction(
         )));
     }
 
-    let is_vault_tx =
-        crate::infra::accounts::vault_tx::VaultTransactionAccount::parse(&tx_account.data).is_ok();
-    let (data, accounts) = if is_vault_tx {
-        let data = vec![0xc2, 0x08, 0xa1, 0x57, 0x99, 0xa4, 0x19, 0xab];
-        let mut accts = vec![
-            AccountMeta::new_readonly(*multisig, false),
-            AccountMeta::new(proposal, false),
-            AccountMeta::new_readonly(transaction, false),
-            AccountMeta::new_readonly(executor, true),
-        ];
-        let vtx =
-            crate::infra::accounts::vault_tx::VaultTransactionAccount::parse(&tx_account.data)?;
-        let num_signers = vtx.message.num_signers as usize;
-        let num_writable_signers = vtx.message.num_writable_signers as usize;
-        let num_writable_non_signers = vtx.message.num_writable_non_signers as usize;
-        for (i, key_bytes) in vtx.message.account_keys.iter().enumerate() {
-            let key = Pubkey::from(*key_bytes);
-            let is_writable = if i < num_signers {
-                i < num_writable_signers
-            } else {
-                (i - num_signers) < num_writable_non_signers
-            };
-            if is_writable {
-                accts.push(AccountMeta::new(key, false));
-            } else {
-                accts.push(AccountMeta::new_readonly(key, false));
-            }
+    if let Ok(vtx) =
+        crate::infra::accounts::vault_tx::VaultTransactionAccount::parse(&tx_account.data)
+    {
+        let required =
+            app_proposal::required_external_signers(&vtx, multisig, &transaction, &cfg.program_id);
+        // Same executor (fee payer) refusal as the online path.
+        app_proposal::select_external_signers(&required, &executor, ExternalSignerMode::Simulate)?;
+        if !required.is_empty() {
+            let keys: Vec<String> = required.iter().map(ToString::to_string).collect();
+            return Err(MsigError::Usage(format!(
+                "proposal #{index} needs {} to co-sign its execution. Offline co-signing by keys \
+                 outside the multisig is not supported; execute it online with \
+                 `msig proposal execute {index} --extra-signer <KEYPAIR_FILE>`.",
+                keys.join(", ")
+            )));
         }
-        (data, accts)
-    } else {
-        let data = vec![0x72, 0x92, 0xf4, 0xbd, 0xfc, 0x8c, 0x24, 0x28];
-        let system_program = solana_pubkey::pubkey!("11111111111111111111111111111111");
-        let accts = vec![
-            AccountMeta::new(*multisig, false),
-            AccountMeta::new_readonly(executor, true),
-            AccountMeta::new(proposal, false),
-            AccountMeta::new_readonly(transaction, false),
-            AccountMeta::new(executor, true),
-            AccountMeta::new_readonly(system_program, false),
-        ];
-        (data, accts)
-    };
+        let plan = app_proposal::plan_vault_transaction_execute(
+            rpc,
+            cfg.program_id,
+            *multisig,
+            proposal,
+            transaction,
+            executor,
+            &vtx,
+            ExternalSignerMode::Supplied {
+                keys: &[],
+                flag: "--extra-signer",
+            },
+        )?;
+        return Ok(plan.instruction);
+    }
+
+    let data = vec![0x72, 0x92, 0xf4, 0xbd, 0xfc, 0x8c, 0x24, 0x28];
+    let system_program = solana_pubkey::pubkey!("11111111111111111111111111111111");
+    let accounts = vec![
+        AccountMeta::new(*multisig, false),
+        AccountMeta::new_readonly(executor, true),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(transaction, false),
+        AccountMeta::new(executor, true),
+        AccountMeta::new_readonly(system_program, false),
+    ];
 
     Ok(Instruction {
         program_id: cfg.program_id,
@@ -1369,7 +1378,83 @@ fn wait_for_confirmation(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::proposal::tests::{encode_vault_tx, external_signer_fixture, NoRpc};
     use std::collections::HashMap;
+
+    fn approved_proposal() -> crate::infra::accounts::proposal::ProposalAccount {
+        crate::infra::accounts::proposal::ProposalAccount {
+            multisig: Pubkey::new_from_array([7u8; 32]),
+            transaction_index: 5,
+            status: crate::domain::proposal::ProposalStatus::Approved { timestamp: 0 },
+            bump: 255,
+            approved: vec![],
+            rejected: vec![],
+            cancelled: vec![],
+        }
+    }
+
+    fn export_execute(
+        writable_external: &[Pubkey],
+        readonly_external: &[Pubkey],
+        exporter: Pubkey,
+    ) -> Result<(Instruction, Vec<Pubkey>), MsigError> {
+        let f = external_signer_fixture(writable_external, readonly_external);
+        let tx_account = crate::infra::rpc::AccountData {
+            lamports: 1,
+            data: encode_vault_tx(&f.vtx),
+            owner: crate::infra::pda::PROGRAM_ID.to_string(),
+        };
+        let ix = build_execute_instruction(
+            &NoRpc,
+            &f.multisig,
+            f.proposal,
+            f.transaction,
+            &tx_account,
+            exporter,
+            5,
+            &approved_proposal(),
+            &crate::infra::config::Config::default(),
+        )?;
+        let mut expected = vec![f.multisig, f.proposal, f.transaction, exporter];
+        expected.extend(f.vtx.message.account_keys.iter().map(|k| Pubkey::from(*k)));
+        Ok((ix, expected))
+    }
+
+    #[test]
+    fn offline_execute_refuses_external_co_signers() {
+        let ext = Pubkey::new_from_array([31u8; 32]);
+        let exporter = Pubkey::new_from_array([40u8; 32]);
+        match export_execute(&[], &[ext], exporter) {
+            Err(MsigError::Usage(msg)) => {
+                assert!(msg.contains(&ext.to_string()));
+                assert!(msg.contains("not supported"));
+                assert!(msg.contains("msig proposal execute 5 --extra-signer <KEYPAIR_FILE>"));
+            }
+            other => panic!("expected refusal, got {other:?}"),
+        }
+        // The exporter (fee payer) as the inner signer is refused too.
+        match export_execute(&[], &[exporter], exporter) {
+            Err(MsigError::Transaction(msg)) => assert!(msg.contains("fee payer")),
+            other => panic!("expected fee-payer refusal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn offline_execute_vault_only_message_is_unchanged() {
+        let exporter = Pubkey::new_from_array([40u8; 32]);
+        let (ix, expected) = export_execute(&[], &[], exporter).unwrap_or_else(|e| panic!("{e}"));
+        let signers: Vec<Pubkey> = ix
+            .accounts
+            .iter()
+            .filter(|m| m.is_signer)
+            .map(|m| m.pubkey)
+            .collect();
+        assert_eq!(signers, vec![exporter]);
+        // Same account list the old duplicate loop produced: 4 fixed accounts,
+        // then every message key with its writability.
+        let keys: Vec<Pubkey> = ix.accounts.iter().map(|m| m.pubkey).collect();
+        assert_eq!(keys, expected);
+    }
 
     #[test]
     fn parse_create_data_accepts_hex_and_utf8() {

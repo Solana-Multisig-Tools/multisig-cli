@@ -2,11 +2,10 @@
 
 `msig vote-account` lets a validator run vote account withdrawer operations from a Squads vault, without a UI. The vault is the vote account's authorized withdrawer; every operation becomes one Squads vault-transaction proposal that the multisig members review, approve and execute like any other proposal.
 
-Each command creates exactly one proposal containing one Vote program instruction, the same granularity as the `solana` CLI. The only inner signer is the vault.
+Each command creates exactly one proposal containing one Vote program instruction, the same granularity as the `solana` CLI. The inner signer is the vault, except for `set-identity`, where the new validator identity must also sign (see [Changing The Validator Identity](#changing-the-validator-identity)).
 
 Not supported yet:
 
-- changing the validator identity (`UpdateValidatorIdentity`)
 - stake account operations
 - changing the voter of a vote account that has a BLS key registered (see [BLS voter](#bls-voter))
 
@@ -54,6 +53,7 @@ All proposal commands require an explicit global `--vault-index <N>`, the index 
 | `msig vote-account set-voter <VOTE_ACCOUNT> <NEW_VOTER>` | `Authorize(Voter)`. |
 | `msig vote-account set-withdrawer <VOTE_ACCOUNT> <NEW_WITHDRAWER> [--allow-external-authority]` | `Authorize(Withdrawer)`. |
 | `msig vote-account set-collector <VOTE_ACCOUNT> <inflation-rewards\|block-revenue> <COLLECTOR> [--allow-external-authority]` | `UpdateCommissionCollector` (SIMD-0232). |
+| `msig vote-account set-identity <VOTE_ACCOUNT> <NEW_IDENTITY>` | `UpdateValidatorIdentity`. The new identity must co-sign the execution. |
 
 Before anything is proposed, every proposal command:
 
@@ -68,6 +68,7 @@ Command-specific checks:
 - `set-voter`: refuses V4 accounts with a BLS key registered.
 - `set-withdrawer`: refuses a new withdrawer that is not one of this multisig's 256 vaults unless `--allow-external-authority` is passed.
 - `set-collector`: the collector must be the vote account itself, or an existing system-owned account holding at least its rent-exempt minimum. A collector that is neither the vote account nor one of this multisig's vaults is refused unless `--allow-external-authority` is passed.
+- `set-identity`: refuses the current identity, the vote account itself, and any of this multisig's vaults.
 
 With `--allow-external-authority`, the CLI prints a warning and adds the external authority to the description shown in your signing preview. That description is not stored on chain: other approvers see the `WARNING` line that `msig proposal show` prints for the instruction.
 
@@ -93,7 +94,32 @@ msig --multisig <MULTISIG> proposal simulate <INDEX>
 msig --multisig <MULTISIG> proposal execute <INDEX>
 ```
 
-`proposal show` decodes Vote program instructions (withdraw amount and recipient, commission, authorize role and new authority, collector) and prints a `WARNING` line when a withdrawer authority or a collector is set to a key outside the multisig's vaults, or when a Vote instruction cannot be decoded.
+`proposal show` decodes Vote program instructions (withdraw amount and recipient, commission, authorize role and new authority, collector, new validator identity) and prints a `WARNING` line when a withdrawer authority or a collector is set to a key outside the multisig's vaults, or when a Vote instruction cannot be decoded.
+
+## Changing The Validator Identity
+
+`UpdateValidatorIdentity` needs two signatures: the authorized withdrawer (the vault, signed by the Squads program at execution) and the new validator identity. The new identity is not part of the multisig, so it signs the execute transaction itself:
+
+```sh
+# 1. Propose
+msig --multisig <MULTISIG> --vault-index 0 vote-account set-identity <VOTE_ACCOUNT> <NEW_IDENTITY>
+
+# 2. Review and approve as usual
+msig --multisig <MULTISIG> proposal show <INDEX>
+msig --multisig <MULTISIG> proposal approve <INDEX>
+
+# 3. Simulate (marks the new identity as signer; nothing is signed)
+msig --multisig <MULTISIG> proposal simulate <INDEX>
+
+# 4. Execute with the new identity keypair as extra signer
+msig --multisig <MULTISIG> proposal execute <INDEX> --extra-signer <NEW_IDENTITY_KEYPAIR>
+```
+
+The new identity's keypair file must be available on the machine that runs `proposal execute`. Ledger is not supported for the identity key in this version: `--extra-signer` only accepts a keypair file. If the identity keypair is not passed with `--extra-signer`, `proposal execute` stops before signing and names the missing key. With `--output json`, co-signing also requires `--yes`, because JSON mode shows no preview. The execute preview lists the extra signer and the decoded `UpdateValidatorIdentity` it co-signs. The executor cannot be the new identity: the CLI refuses to let the fee payer signature double as the identity signature, so execute with another member.
+
+Execution is online only. `msig tx export <INDEX> --action execute` refuses a proposal that needs a co-signer outside the multisig, and points to `proposal execute --extra-signer`. Offline co-signing (for example with the identity key on a Ledger or an air-gapped machine) is a planned follow-up.
+
+After execution, check the new identity with `msig vote-account show <VOTE_ACCOUNT>`, and make sure the validator node runs with the new identity keypair. On V4 vote accounts, also check the block-revenue collector shown there.
 
 ## Closing A Vote Account
 

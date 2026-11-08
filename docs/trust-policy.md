@@ -32,17 +32,31 @@ Templates may not run code, call RPC, read environment variables, or load other 
 
 `msig tx create` is the explicit escape hatch for operators who do not want to create a template. It accepts a single program ID, repeated account metas, and optional instruction data from CLI flags.
 
-Custom instructions have the same signer boundary as templates: only the active Squads vault may be marked as a signer. The command previews the exact program, accounts, account flags, vault, and data byte length before the Squads proposal transaction is signed.
+Custom instructions built from `--program`/`--account` flags have the same signer boundary as templates: only the active Squads vault may be marked as a signer. The command previews the exact program, accounts, account flags, vault, and data byte length before the Squads proposal transaction is signed.
 
 `msig tx create --vault-index <N>` selects the vault for the proposal. If omitted, the command uses the global `--vault-index` value when provided, then the configured default.
 
-`msig tx create --vault-message` also accepts pre-serialized vault transaction message bytes as hex, Base64, or a JSON byte array. This path is intentionally explicit and previews only byte length because the CLI does not reconstruct high-level instruction intent from arbitrary serialized message bytes.
+`msig tx create --vault-message` also accepts pre-serialized vault transaction message bytes as hex, Base64, or a JSON byte array. This path is intentionally explicit and previews only byte length because the CLI does not reconstruct high-level instruction intent from arbitrary serialized message bytes. It does not inspect the message's signers either: a `--vault-message` can name inner signers other than the vault. Such a proposal can only be executed with those keys supplied as extra signers (see [Extra Signers At Execution](#extra-signers-at-execution)), and reviewers should inspect it with `msig proposal show <INDEX> --verbose`.
 
 Vault messages that use address lookup tables are supported during proposal inspection, simulation, and execution. The CLI fetches each lookup table account, verifies it is owned by the Solana address lookup table program, resolves referenced indexes, and includes the resolved remaining accounts in Squads execution.
 
 ## Vote Account Commands
 
-`msig vote-account` proposal commands build hand-encoded Vote program instructions whose only signer is the active Squads vault, which must already be the vote account's authorized withdrawer. Before proposing, they check the vote account owner and withdrawer on chain, simulate the inner instruction on its own, and refuse to hand the withdrawer authority or a commission collector to a key outside the multisig's vaults unless `--allow-external-authority` is passed. With the flag, the proposer sees the fact in the local signing preview; it is not stored on chain, so other approvers rely on the `WARNING` line that `msig proposal show` prints for such instructions. See [validator operations](validator-operations.md).
+`msig vote-account` proposal commands build hand-encoded Vote program instructions signed by the active Squads vault, which must already be the vote account's authorized withdrawer. `vote-account set-identity` is the only command that adds a second inner signer: `UpdateValidatorIdentity` requires the new validator identity to sign, so that proposal can only be executed with the identity supplied as an extra signer (see [Extra Signers At Execution](#extra-signers-at-execution)). Templates and `tx create --program/--account` still refuse any inner signer other than the vault; `tx create --vault-message` does not inspect signers. Before proposing, they check the vote account owner and withdrawer on chain, simulate the inner instruction on its own, and refuse to hand the withdrawer authority or a commission collector to a key outside the multisig's vaults unless `--allow-external-authority` is passed. With the flag, the proposer sees the fact in the local signing preview; it is not stored on chain, so other approvers rely on the `WARNING` line that `msig proposal show` prints for such instructions. See [validator operations](validator-operations.md).
+
+## Extra Signers At Execution
+
+The Squads program requires every inner-message signer that is neither the transaction's vault nor one of its ephemeral signer PDAs to sign the execute transaction. The CLI calls these required external signers and never marks a key as an outer signer only because the stored message lists it as a signer:
+
+- `msig proposal execute <INDEX> --extra-signer <KEYPAIR_FILE>` (repeatable) supplies the keypair of each required external signer. Every required external signer must be supplied, or the command stops before signing and names the missing key. A supplied keypair that is not a required external signer is refused. Extra signers must be keypair files; a Ledger cannot be an extra signer in this version.
+- A required external signer equal to the executor (the fee payer) is always refused, even if supplied. Otherwise the executor's single fee-payer signature would also authorize the inner instruction, for example a transfer out of the executor's own wallet planted in a proposal.
+- When extra signers are needed, the signing preview lists them, the inner instructions each one's signature authorizes, and the decoded inner instructions instead of the Squads wrapper alone. An extra signer's signature authorizes every inner instruction that lists it as a signer, so review the whole vault message before supplying a key.
+- `msig proposal simulate` marks every required external signer as a signer, since simulation does not verify signatures. The executor rule still applies.
+- Extra signers are online only. `msig tx export <INDEX> --action execute` refuses, before writing any file, a vault transaction whose message needs an external co-signer, and points to `msig proposal execute <INDEX> --extra-signer <KEYPAIR_FILE>`. It also refuses a message that lists the exporter (fee payer) as an inner signer.
+- Config transactions have no inner signers, so extra signers are refused for them.
+- In JSON output mode the pipeline shows no preview and no prompt, so `proposal execute --extra-signer` in JSON mode is refused unless `--yes` is passed.
+
+Follow-up: offline co-signing by keys outside the multisig needs a strict allow-list review in `tx import` and is not supported yet.
 
 ## Proposal Review And Simulation
 

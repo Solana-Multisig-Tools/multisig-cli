@@ -60,8 +60,16 @@ fn cmd_simulate(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), 
     let multisig_pubkey = resolve_multisig_for_read(&globals, &cfg, None)?;
     let index = resolve_proposal_index(&rpc, &proposal_ref, &multisig_pubkey, &cfg)?;
 
-    let plan =
-        proposal::prepare_execute_proposal(&rpc, &multisig_pubkey, index, signer.pubkey(), &cfg)?;
+    // Simulation does not verify signatures, so every external inner signer is
+    // marked as it would be at execution; nothing is signed here.
+    let plan = proposal::prepare_execute_proposal(
+        &rpc,
+        &multisig_pubkey,
+        index,
+        signer.pubkey(),
+        &cfg,
+        proposal::ExternalSignerMode::Simulate,
+    )?;
     let watched_accounts: Vec<String> = plan
         .watched_accounts
         .iter()
@@ -908,9 +916,13 @@ fn cmd_vote(globals: GlobalOpts, parser: &mut lexopt::Parser, vote: Vote) -> Res
 fn cmd_execute(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), MsigError> {
     use lexopt::Arg::*;
     let mut proposal_ref: Option<String> = None;
+    let mut extra_signer_paths: Vec<String> = Vec::new();
 
     while let Some(arg) = parser.next().map_err(|e| MsigError::Usage(e.to_string()))? {
         match arg {
+            Long("extra-signer") => {
+                extra_signer_paths.push(parse_value(parser, "--extra-signer")?);
+            }
             Short('h') | Long("help") => {
                 super::help::print_resource_help("proposal");
                 return Ok(());
@@ -930,6 +942,11 @@ fn cmd_execute(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), M
     let output_mode = crate::output::detect_output_mode(globals.output.as_deref());
     let is_json = matches!(output_mode, OutputMode::Json);
 
+    let extra_signers = extra_signer_paths
+        .iter()
+        .map(|path| crate::infra::signer::load_extra_signer_keypair(path))
+        .collect::<Result<Vec<_>, _>>()?;
+
     let ctx = build_context(&globals)?;
     let multisig = ctx.resolve_multisig(None)?;
     let index = resolve_proposal_index(ctx.rpc(), &proposal_ref, &multisig, &ctx.config)?;
@@ -940,6 +957,7 @@ fn cmd_execute(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), M
             ctx.signer.as_ref(),
             &multisig,
             index,
+            extra_signers,
             &ctx.config,
             globals.dry_run,
             globals.yes,
@@ -950,6 +968,7 @@ fn cmd_execute(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), M
             ctx.signer.as_ref(),
             &multisig,
             index,
+            extra_signers,
             &ctx.config,
             globals.dry_run,
             globals.yes,

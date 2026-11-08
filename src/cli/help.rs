@@ -86,8 +86,12 @@ pub fn print_resource_help(resource: &str) {
             println!("                                    Vote to reject");
             println!("  msig proposal cancel <INDEX|PROPOSAL_ADDR>");
             println!("                                    Cancel a proposal");
-            println!("  msig proposal execute <INDEX|PROPOSAL_ADDR>");
-            println!("                                    Execute an approved proposal");
+            println!(
+                "  msig proposal execute <INDEX|PROPOSAL_ADDR> [--extra-signer <KEYPAIR_FILE>]..."
+            );
+            println!("                                    Execute an approved proposal. --extra-signer supplies");
+            println!("                                    a key the vault message needs besides the vault (e.g.");
+            println!("                                    the new identity of `vote-account set-identity`)");
             println!();
             println!(
                 "  Use --memo <TEXT> to record a UTF-8 note with the vote (approve/reject/cancel)."
@@ -177,6 +181,12 @@ pub fn print_resource_help(resource: &str) {
             println!("  msig vote-account set-collector <VOTE_ACCOUNT> <inflation-rewards|block-revenue> <COLLECTOR>");
             println!("                 [--allow-external-authority]");
             println!("                                    Propose a new commission collector (SIMD-0232)");
+            println!("  msig vote-account set-identity <VOTE_ACCOUNT> <NEW_IDENTITY>");
+            println!("                                    Propose a new validator identity. The new identity");
+            println!("                                    must co-sign the execution: msig proposal execute");
+            println!(
+                "                                    <INDEX> --extra-signer <NEW_IDENTITY_KEYPAIR>"
+            );
             println!();
             println!(
                 "  Proposal commands require an explicit --vault-index <N>: the vault that is the"
