@@ -14,6 +14,7 @@ pub fn print_help() {
     println!("  program   Program upgrade proposals");
     println!("  rent      Rent collector and reclaim");
     println!("  vote-account  Vote account withdrawer operations from a vault");
+    println!("  stake-account Stake account operations from a vault");
     println!("  config    Manage configuration");
     println!();
     println!("GLOBAL OPTIONS:");
@@ -203,6 +204,56 @@ pub fn print_resource_help(resource: &str) {
             println!("                              WARNING in `proposal show`)");
             println!("  --allow-simulation-failure  Propose even if the inner instruction fails simulation now");
             println!("                              (e.g. commission changes late in the epoch)");
+            println!();
+            println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal.");
+        }
+        "stake-account" => {
+            println!("msig stake-account — Stake account operations from a vault\n");
+            println!("  msig stake-account show <STAKE_ACCOUNT>");
+            println!("                                    Show state, balance, authorities, lockup and delegation");
+            println!("  msig stake-account create <AMOUNT_SOL> [--vote-account <VOTE_ACCOUNT>]");
+            println!("                                    Propose a new stake account funded by the vault");
+            println!("                                    (amount includes the rent-exempt reserve; staker and");
+            println!("                                    withdrawer = vault). --vote-account also delegates it");
+            println!("  msig stake-account delegate <STAKE_ACCOUNT> <VOTE_ACCOUNT>");
+            println!("                                    Propose a delegation or redelegation (vault = staker)");
+            println!("  msig stake-account deactivate <STAKE_ACCOUNT>");
+            println!("                                    Propose deactivation (vault = staker)");
+            println!("  msig stake-account withdraw <STAKE_ACCOUNT> <RECIPIENT> (--amount <SOL> | --all)");
+            println!("                                    Propose a withdrawal (vault = withdrawer); --all");
+            println!("                                    withdraws the full balance and closes the account");
+            println!("  msig stake-account split <STAKE_ACCOUNT> <AMOUNT_SOL>");
+            println!("                                    Propose a split into a new stake account; the vault");
+            println!(
+                "                                    pays its rent-exempt reserve (vault = staker)"
+            );
+            println!("  msig stake-account merge <DESTINATION> <SOURCE>");
+            println!("                                    Propose merging SOURCE into DESTINATION (vault = staker");
+            println!("                                    of both)");
+            println!("  msig stake-account set-staker <STAKE_ACCOUNT> <NEW_STAKER>");
+            println!("                                    Propose a new staker (vault = staker or withdrawer)");
+            println!("  msig stake-account set-withdrawer <STAKE_ACCOUNT> <NEW_WITHDRAWER> [--allow-external-authority]");
+            println!(
+                "                                    Propose a new withdrawer (vault = withdrawer)"
+            );
+            println!();
+            println!("  Proposal commands require an explicit --vault-index <N>: the vault that holds the");
+            println!(
+                "  authority (or funds the new account). Unlike `tx create`, there is no default."
+            );
+            println!("  create and split print the new stake account address (an ephemeral signer of the");
+            println!(
+                "  proposal's transaction). Stake accounts with a lockup in force are refused for"
+            );
+            println!("  withdraw and set-withdrawer: lockup custodians are not supported.");
+            println!();
+            println!("  --allow-external-authority  Allow a withdrawer outside this multisig's vaults (shown");
+            println!(
+                "                              in your signing preview; approvers see a WARNING in"
+            );
+            println!("                              `proposal show`)");
+            println!("  --allow-simulation-failure  Propose even if the inner instructions fail simulation now");
+            println!("                              (e.g. a withdrawal that only succeeds after the cooldown)");
             println!();
             println!("  Use --memo <TEXT> to record a UTF-8 note with the resulting proposal.");
         }

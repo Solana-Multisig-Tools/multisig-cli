@@ -1,13 +1,15 @@
-use std::collections::HashMap;
-
 use solana_pubkey::Pubkey;
 
-use super::{build_context, load_config_only, next_verb, parse_value, GlobalOpts};
+use super::{
+    build_context, load_config_only, next_verb, parse_value, require_explicit_vault_index,
+    resolve_labeled_pubkey as resolve_pubkey, GlobalOpts,
+};
+use crate::application::validator_common;
 use crate::application::vote_account::{
     self, CollectorKind, VoteOperation, VoteProposalRequest, WithdrawAmount,
 };
 use crate::error::{MsigError, OutputMode};
-use crate::infra::config::{labels, tokens};
+use crate::infra::config::tokens;
 use crate::output::{format_sol, json};
 
 pub fn run(globals: GlobalOpts, mut parser: lexopt::Parser) -> Result<(), MsigError> {
@@ -66,7 +68,7 @@ fn cmd_show(globals: GlobalOpts, parser: &mut lexopt::Parser) -> Result<(), Msig
         .as_deref()
         .map(|addr| {
             resolve_pubkey(addr, &cfg.labels, "multisig")
-                .map(|ms| vote_account::vault_addresses(&ms, &cfg.program_id))
+                .map(|ms| validator_common::vault_addresses(&ms, &cfg.program_id))
         })
         .transpose()?;
 
@@ -280,29 +282,12 @@ fn parse_proposal_args(
     }))
 }
 
-/// Vote-account proposals must name the vault explicitly. This is stricter
-/// than `tx create`, which falls back to the configured default: picking the
-/// wrong vault would be refused anyway, and an explicit index keeps reviewers
-/// and scripts honest about which vault signs.
 fn require_vault_index(globals: &GlobalOpts) -> Result<u8, MsigError> {
-    globals.vault_index.ok_or_else(|| {
-        MsigError::Usage(
-            "vote-account proposals require an explicit --vault-index <N> (the vault that is \
-             the vote account's authorized withdrawer)"
-                .into(),
-        )
-    })
-}
-
-fn resolve_pubkey(
-    input: &str,
-    labels: &HashMap<String, String>,
-    what: &str,
-) -> Result<Pubkey, MsigError> {
-    let resolved = labels::resolve_address(input, labels)?;
-    resolved
-        .parse()
-        .map_err(|_| MsigError::Usage(format!("invalid {what} address: '{resolved}'")))
+    require_explicit_vault_index(
+        globals,
+        "vote-account",
+        "the vault that is the vote account's authorized withdrawer",
+    )
 }
 
 fn cmd_propose(globals: GlobalOpts, args: ProposalArgs) -> Result<(), MsigError> {

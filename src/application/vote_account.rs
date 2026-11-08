@@ -22,12 +22,14 @@ use crate::infra::signer::Signer;
 use crate::output::{format_addr, format_sol};
 use crate::sanitize::sanitize_display;
 
-use super::pipeline::compile_unsigned_legacy_transaction_base64;
+use super::validator_common::{
+    is_external_withdrawer, read_pubkey, read_u32, read_u64, simulate_inner_instructions,
+    vault_addresses, DecodedInstruction, SYSVAR_CLOCK,
+};
 use super::vault_tx::{create_vault_transaction_proposal, VaultProposalResult};
 
 pub const VOTE_PROGRAM_ID: Pubkey =
     solana_pubkey::pubkey!("Vote111111111111111111111111111111111111111");
-const SYSVAR_CLOCK: Pubkey = solana_pubkey::pubkey!("SysvarC1ock11111111111111111111111111111111");
 const SYSTEM_PROGRAM: Pubkey = solana_pubkey::pubkey!("11111111111111111111111111111111");
 
 const IX_INITIALIZE_ACCOUNT: u32 = 0;
@@ -326,18 +328,6 @@ pub fn resolve_withdraw_amount(
     Ok(lamports)
 }
 
-/// All 256 vault PDAs of a multisig, keyed by address.
-pub fn vault_addresses(multisig: &Pubkey, program_id: &Pubkey) -> HashMap<Pubkey, u8> {
-    (0..=u8::MAX)
-        .map(|index| (pda::vault_pda(multisig, index, program_id).0, index))
-        .collect()
-}
-
-/// A new withdrawer outside the multisig hands the vote account to someone else.
-pub fn is_external_withdrawer(new_withdrawer: &Pubkey, vaults: &HashMap<Pubkey, u8>) -> bool {
-    !vaults.contains_key(new_withdrawer)
-}
-
 /// A collector that is neither the vote account nor a vault diverts rewards.
 pub fn is_external_collector(
     collector: &Pubkey,
@@ -423,47 +413,6 @@ fn check_collector_on_chain(
         None => 0,
     };
     validate_collector(collector, vote, account.as_ref(), rent_exempt_minimum)
-}
-
-/// Simulate the inner instructions on their own, fee payer = proposer, before
-/// anything is proposed. The Squads pipeline only simulates the outer
-/// proposal-creation transaction, which succeeds whatever the inner ops do.
-///
-/// `allow_failure` exists because some operations legitimately fail now but
-/// succeed at execution time (a commission change outside the allowed part of
-/// the epoch, an authority change that is already queued).
-pub fn simulate_inner_instructions(
-    rpc: &dyn RpcProvider,
-    payer: &Pubkey,
-    instructions: &[Instruction],
-    allow_failure: bool,
-) -> Result<(), MsigError> {
-    let (blockhash, _) = rpc.get_latest_blockhash()?;
-    let tx = compile_unsigned_legacy_transaction_base64(instructions, payer, &blockhash)?;
-    let result = rpc.simulate_transaction(&tx)?;
-    let Some(err) = result.err else {
-        return Ok(());
-    };
-
-    let err = sanitize_display(&err.to_string());
-    eprintln!("Inner instruction simulation failed: {err}");
-    if !result.logs.is_empty() {
-        eprintln!("Simulation logs:");
-        for log in &result.logs {
-            eprintln!("  {}", sanitize_display(log));
-        }
-    }
-    if allow_failure {
-        eprintln!(
-            "Warning: proposing anyway because --allow-simulation-failure was passed. \
-             The proposal may fail at execution."
-        );
-        return Ok(());
-    }
-    Err(MsigError::SimulationFailed(format!(
-        "inner vote instructions failed: {err}. Nothing was proposed. Pass \
-         --allow-simulation-failure only if the operation is expected to succeed at execution time."
-    )))
 }
 
 // ---------------------------------------------------------------------------
@@ -744,29 +693,7 @@ fn vote_account_info(
 // Review decoding (proposal show and the create preview)
 // ---------------------------------------------------------------------------
 
-/// Human-readable decoding of one Vote program instruction plus review warnings.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DecodedVoteInstruction {
-    pub text: String,
-    pub warnings: Vec<String>,
-}
-
 const UNRECOGNISED: &str = "Vote: unrecognised instruction";
-
-fn read_u32(data: &[u8], off: usize) -> Option<u32> {
-    data.get(off..off + 4)
-        .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-}
-
-fn read_u64(data: &[u8], off: usize) -> Option<u64> {
-    data.get(off..off + 8)
-        .map(|b| u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
-}
-
-fn read_pubkey(data: &[u8], off: usize) -> Option<Pubkey> {
-    let bytes: [u8; 32] = data.get(off..off + 32)?.try_into().ok()?;
-    Some(Pubkey::from(bytes))
-}
 
 fn role_label(tag: u32) -> Option<&'static str> {
     match tag {
@@ -799,7 +726,7 @@ pub fn decode_vote_instruction(
     accounts: &[Pubkey],
     vaults: Option<&HashMap<Pubkey, u8>>,
     truncate: bool,
-) -> DecodedVoteInstruction {
+) -> DecodedInstruction {
     let addr = |pk: &Pubkey| format_addr(&pk.to_string(), truncate);
     let acct = |idx: usize| accounts.get(idx).map(addr).unwrap_or_else(|| "?".into());
     let mut warnings = Vec::new();
@@ -923,8 +850,8 @@ pub fn decode_vote_instruction(
     })();
 
     match text {
-        Some(text) => DecodedVoteInstruction { text, warnings },
-        None => DecodedVoteInstruction {
+        Some(text) => DecodedInstruction { text, warnings },
+        None => DecodedInstruction {
             text: UNRECOGNISED.to_string(),
             warnings: vec![
                 "unrecognised Vote program instruction; review the raw data with --verbose"
@@ -1452,6 +1379,11 @@ mod tests {
         }
         fn get_minimum_balance_for_rent_exemption(&self, _: usize) -> Result<u64, MsigError> {
             Err(MsigError::Transaction("unexpected rent request".into()))
+        }
+        fn get_stake_minimum_delegation(&self) -> Result<u64, MsigError> {
+            Err(MsigError::Transaction(
+                "unexpected stake minimum delegation request".into(),
+            ))
         }
         fn send_transaction(&self, _: &str) -> Result<String, MsigError> {
             Err(MsigError::Transaction("unexpected send".into()))

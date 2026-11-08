@@ -5,6 +5,7 @@ pub mod multisig;
 pub mod program;
 pub mod proposal;
 pub mod rent;
+pub mod stake_account;
 pub mod template;
 pub mod transfer;
 pub mod tx;
@@ -85,6 +86,35 @@ pub fn next_verb(parser: &mut lexopt::Parser, resource: &str) -> Result<String, 
         }
         Err(e) => Err(MsigError::Usage(e.to_string())),
     }
+}
+
+/// Validator commands (`vote-account`, `stake-account`) must name the vault
+/// explicitly. This is stricter than `tx create`, which falls back to the
+/// configured default: picking the wrong vault would be refused anyway, and an
+/// explicit index keeps reviewers and scripts honest about which vault signs.
+/// `role` describes the vault, e.g. "the vote account's authorized withdrawer".
+fn require_explicit_vault_index(
+    globals: &GlobalOpts,
+    resource: &str,
+    role: &str,
+) -> Result<u8, MsigError> {
+    globals.vault_index.ok_or_else(|| {
+        MsigError::Usage(format!(
+            "{resource} proposals require an explicit --vault-index <N> ({role})"
+        ))
+    })
+}
+
+/// Resolve a label or base58 address to a pubkey.
+fn resolve_labeled_pubkey(
+    input: &str,
+    labels: &std::collections::HashMap<String, String>,
+    what: &str,
+) -> Result<solana_pubkey::Pubkey, MsigError> {
+    let resolved = crate::infra::config::labels::resolve_address(input, labels)?;
+    resolved
+        .parse()
+        .map_err(|_| MsigError::Usage(format!("invalid {what} address: '{resolved}'")))
 }
 
 fn take_required_arg(args: &[String], idx: &mut usize, flag: &str) -> Result<String, MsigError> {
@@ -389,6 +419,7 @@ pub fn run() -> Result<(), MsigError> {
         "program" => program::run(globals, parser),
         "rent" => rent::run(globals, parser),
         "vote-account" => vote_account::run(globals, parser),
+        "stake-account" => stake_account::run(globals, parser),
         "tui" => run_tui_command(globals),
         _ => Err(MsigError::Usage(format!(
             "unknown command: '{resource}'. Run 'msig --help'."

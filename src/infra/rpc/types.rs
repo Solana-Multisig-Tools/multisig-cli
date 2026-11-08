@@ -89,6 +89,12 @@ pub struct MultipleAccountsResult {
     pub value: Vec<Option<AccountInfoValue>>,
 }
 
+/// An RPC result wrapped in `{ context, value }`.
+#[derive(Debug, Deserialize)]
+pub struct ContextValue<T> {
+    pub value: T,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct BlockhashResult {
     pub value: BlockhashValue,

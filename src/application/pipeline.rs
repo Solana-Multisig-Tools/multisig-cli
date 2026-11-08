@@ -779,6 +779,7 @@ fn decode_known_program_instruction(ix: &Instruction) -> Option<String> {
         "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
         | "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo" => decode_memo_instruction(ix),
         "Vote111111111111111111111111111111111111111" => Some(decode_vote_instruction(ix)),
+        "Stake11111111111111111111111111111111111111" => Some(decode_stake_instruction(ix)),
         _ => None,
     }
 }
@@ -789,6 +790,14 @@ fn decode_known_program_instruction(ix: &Instruction) -> Option<String> {
 fn decode_vote_instruction(ix: &Instruction) -> String {
     let accounts: Vec<Pubkey> = ix.accounts.iter().map(|meta| meta.pubkey).collect();
     super::vote_account::decode_vote_instruction(&ix.data, &accounts, None, false).text
+}
+
+/// Like Vote, without multisig context: withdrawer warnings are raised by
+/// `proposal show`, and the stake-account commands refuse external
+/// withdrawers before proposing unless explicitly allowed.
+fn decode_stake_instruction(ix: &Instruction) -> String {
+    let accounts: Vec<Pubkey> = ix.accounts.iter().map(|meta| meta.pubkey).collect();
+    super::stake_account::decode_stake_instruction(&ix.data, &accounts, None, false).text
 }
 
 fn decode_system_instruction(ix: &Instruction) -> Option<String> {
@@ -876,6 +885,7 @@ fn identify_program(program_id: &Pubkey, truncate: bool) -> String {
         "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo" => "Memo".to_string(),
         "ComputeBudget111111111111111111111111111111" => "ComputeBudget".to_string(),
         "Vote111111111111111111111111111111111111111" => "Vote".to_string(),
+        "Stake11111111111111111111111111111111111111" => "Stake".to_string(),
         other => format_addr(other, truncate),
     }
 }
@@ -1021,6 +1031,25 @@ mod tests {
     fn compact_to_vec(value: u16) -> Vec<u8> {
         let (buf, len) = encode_compact_u16(value);
         buf[..len].to_vec()
+    }
+
+    #[test]
+    fn preview_decodes_stake_instructions() {
+        use crate::application::stake_account;
+        let stake = Pubkey::new_from_array([1u8; 32]);
+        let staker = Pubkey::new_from_array([2u8; 32]);
+        let ix = stake_account::build_deactivate_instruction(stake, staker);
+        let display = build_instruction_display(&ix, false);
+        assert_eq!(display.program, "Stake");
+        assert_eq!(
+            display.decoded.as_deref(),
+            Some(format!("Stake Deactivate {stake}, authority={staker}").as_str())
+        );
+        let ix = stake_account::build_system_allocate_instruction(stake, 200);
+        assert_eq!(
+            build_instruction_display(&ix, false).decoded.as_deref(),
+            Some("System allocate")
+        );
     }
 
     #[test]
