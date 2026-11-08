@@ -972,6 +972,9 @@ pub(crate) mod tests {
         fn get_minimum_balance_for_rent_exemption(&self, _: usize) -> Result<u64, MsigError> {
             Err(MsigError::Transaction("unexpected RPC call".into()))
         }
+        fn get_stake_minimum_delegation(&self) -> Result<u64, MsigError> {
+            Err(MsigError::Transaction("unexpected RPC call".into()))
+        }
         fn send_transaction(&self, _: &str) -> Result<String, MsigError> {
             Err(MsigError::Transaction("unexpected RPC call".into()))
         }

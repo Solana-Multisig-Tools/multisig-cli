@@ -1,6 +1,6 @@
 # Validator Operations
 
-`msig vote-account` lets a validator run vote account withdrawer operations from a Squads vault, without a UI; the vault is the vote account's authorized withdrawer. `msig stake-account` does the same for stake accounts whose staker and/or withdrawer is a vault; see [Stake accounts](#stake-accounts). Every operation becomes one Squads vault-transaction proposal that the multisig members review, approve and execute like any other proposal, the same granularity as the `solana` CLI.
+`msig vote-account` lets a validator run vote account withdrawer operations from a Squads vault, without a UI; the vault is the vote account's authorized withdrawer. `msig stake-account` does the same for stake accounts whose staker and/or withdrawer is a vault; see [Stake accounts](#stake-accounts). Every operation becomes one Squads vault-transaction proposal that the multisig members review, approve and execute like any other proposal.
 
 Each `vote-account` command creates exactly one proposal containing one Vote program instruction, the same granularity as the `solana` CLI. The inner signer is the vault, except for `set-identity`, where the new validator identity must also sign (see [Changing The Validator Identity](#changing-the-validator-identity)). `stake-account` commands sign with the vault too; `create` and `split` also use one ephemeral signer PDA of the proposal's transaction as the new stake account (see [Stake accounts](#stake-accounts)).
 
