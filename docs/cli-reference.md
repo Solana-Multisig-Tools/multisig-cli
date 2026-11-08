@@ -71,7 +71,7 @@ Configuration is resolved in this order:
 | `msig proposal approve` | Vote to approve. |
 | `msig proposal reject` | Vote to reject. |
 | `msig proposal cancel` | Cancel a proposal. |
-| `msig proposal execute` | Execute an approved proposal. |
+| `msig proposal execute` | Execute an approved proposal. `--extra-signer <KEYPAIR_FILE>` (repeatable) supplies a signer the vault message requires besides the vault; see [extra signers](trust-policy.md#extra-signers-at-execution). |
 | `msig transfer sol` | Create a SOL transfer proposal. |
 | `msig transfer spl` | Create an SPL token transfer proposal. |
 | `msig template inspect` | Show template inputs and SHA-256. |
@@ -80,7 +80,7 @@ Configuration is resolved in this order:
 | `msig tx create` | Create a one-off custom vault transaction proposal. |
 | `msig tx show` | Show transaction details. |
 | `msig tx list` | List recent transactions. |
-| `msig tx export` | Export a signable `.sqds` transaction. |
+| `msig tx export` | Export a signable `.sqds` transaction. `--action execute` refuses proposals that need a co-signer outside the multisig; execute those online with `proposal execute --extra-signer`. |
 | `msig tx status` | Verify and inspect a `.sqds` file. |
 | `msig tx combine` | Merge signatures from matching `.sqds` files. |
 | `msig tx import` | Sign or submit an offline transaction. |
@@ -93,6 +93,7 @@ Configuration is resolved in this order:
 | `msig vote-account set-voter` | Propose a new authorized voter. Requires `--vault-index`. |
 | `msig vote-account set-withdrawer` | Propose a new authorized withdrawer. Requires `--vault-index`. |
 | `msig vote-account set-collector` | Propose a new inflation-rewards or block-revenue collector. Requires `--vault-index`. |
+| `msig vote-account set-identity` | Propose a new validator identity. Requires `--vault-index`. The new identity co-signs the execution (`proposal execute --extra-signer`). |
 | `msig config doctor` | Check local trust and mainnet-readiness settings. |
 
 The `vote-account` proposal commands require the global `--vault-index` to be passed explicitly; unlike `tx create` they do not fall back to the configured default. See [validator operations](validator-operations.md).
