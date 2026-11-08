@@ -94,9 +94,18 @@ Configuration is resolved in this order:
 | `msig vote-account set-withdrawer` | Propose a new authorized withdrawer. Requires `--vault-index`. |
 | `msig vote-account set-collector` | Propose a new inflation-rewards or block-revenue collector. Requires `--vault-index`. |
 | `msig vote-account set-identity` | Propose a new validator identity. Requires `--vault-index`. The new identity co-signs the execution (`proposal execute --extra-signer`). |
+| `msig stake-account show` | Show a stake account's state, balance, authorities, lockup, and delegation. |
+| `msig stake-account create` | Propose a new stake account funded by the vault, optionally delegated (`--vote-account`). Requires `--vault-index`. |
+| `msig stake-account delegate` | Propose a stake delegation or redelegation. Requires `--vault-index`. |
+| `msig stake-account deactivate` | Propose a stake deactivation. Requires `--vault-index`. |
+| `msig stake-account withdraw` | Propose a stake withdrawal (`--amount` or `--all`). Requires `--vault-index`. |
+| `msig stake-account split` | Propose splitting a stake account into a new one. Requires `--vault-index`. |
+| `msig stake-account merge` | Propose merging two stake accounts. Requires `--vault-index`. |
+| `msig stake-account set-staker` | Propose a new staker. Requires `--vault-index`. |
+| `msig stake-account set-withdrawer` | Propose a new withdrawer. Requires `--vault-index`. |
 | `msig config doctor` | Check local trust and mainnet-readiness settings. |
 
-The `vote-account` proposal commands require the global `--vault-index` to be passed explicitly; unlike `tx create` they do not fall back to the configured default. See [validator operations](validator-operations.md).
+The `vote-account` and `stake-account` proposal commands require the global `--vault-index` to be passed explicitly; unlike `tx create` they do not fall back to the configured default. See [validator operations](validator-operations.md).
 
 ## Memos
 
@@ -108,7 +117,7 @@ Memos land in different Squads v4 instruction args depending on the command:
 |---|---|
 | `msig multisig create` | `MultisigCreateArgsV2.memo` |
 | `msig multisig set-threshold`, `set-timelock`, `add-spending-limit`, `remove-spending-limit`, `member add`, `member remove`, `rent set-collector` | `ConfigTransactionCreateArgs.memo` |
-| `msig transfer sol`, `transfer spl`, `tx create`, `template run`, `program upgrade`, `vote-account` proposal commands | `VaultTransactionCreateArgs.memo` |
+| `msig transfer sol`, `transfer spl`, `tx create`, `template run`, `program upgrade`, `vote-account` and `stake-account` proposal commands | `VaultTransactionCreateArgs.memo` |
 | `msig proposal approve`, `proposal reject`, `proposal cancel`, `tx export` (vote actions) | `ProposalVoteArgs.memo` |
 
 Memos are encoded in the Borsh `Option<String>` wire format and live inside Squads program state as audit metadata. They are not Solana Memo Program instructions, and they are visible to anyone reading the on-chain account.
