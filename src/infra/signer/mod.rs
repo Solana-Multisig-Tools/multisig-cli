@@ -51,6 +51,30 @@ pub fn resolve_signer(
     ))
 }
 
+/// Load a raw keypair file for an additional transaction signer (for example
+/// the new validator identity at `proposal execute --extra-signer`).
+///
+/// Only keypair files are accepted: the transaction pipeline signs extra
+/// signers with raw key material, so a Ledger cannot be used here.
+pub fn load_extra_signer_keypair(value: &str) -> Result<zeroize::Zeroizing<[u8; 64]>, MsigError> {
+    if value.starts_with("usb://") {
+        return Err(MsigError::Usage(format!(
+            "extra signer '{value}' is a hardware wallet URI; extra signers must be keypair \
+             files. A Ledger cannot be an extra signer in this version."
+        )));
+    }
+    keypair::read_keypair_bytes(&expand_home(value))
+}
+
+fn expand_home(value: &str) -> String {
+    if let Some(rest) = value.strip_prefix("~/") {
+        if let Some(home) = crate::infra::config::file::home_dir() {
+            return home.join(rest).to_string_lossy().into_owned();
+        }
+    }
+    value.to_string()
+}
+
 fn resolve_keypair_value(value: &str) -> Result<Box<dyn Signer>, MsigError> {
     if value.starts_with("usb://ledger") {
         #[cfg(feature = "ledger")]
@@ -66,16 +90,6 @@ fn resolve_keypair_value(value: &str) -> Result<Box<dyn Signer>, MsigError> {
         }
     }
 
-    let expanded = if let Some(rest) = value.strip_prefix("~/") {
-        if let Some(home) = crate::infra::config::file::home_dir() {
-            home.join(rest).to_string_lossy().into_owned()
-        } else {
-            value.to_string()
-        }
-    } else {
-        value.to_string()
-    };
-
-    let signer = keypair::KeypairSigner::from_file(&expanded)?;
+    let signer = keypair::KeypairSigner::from_file(&expand_home(value))?;
     Ok(Box::new(signer))
 }

@@ -1,7 +1,9 @@
 //! Vote account withdrawer operations run from a Squads vault.
 //!
-//! Each operation becomes one vault-transaction proposal whose only inner
-//! signer is the vault that is the vote account's authorized withdrawer.
+//! Each operation becomes one vault-transaction proposal whose inner signer is
+//! the vault that is the vote account's authorized withdrawer. The one
+//! exception is `UpdateValidatorIdentity`, where the new identity must also
+//! sign; it is supplied at execution (`proposal execute --extra-signer`).
 //! Vote program instructions are encoded by hand (bincode: u32 LE enum tag
 //! followed by LE fields) and checked against bytes dumped from the solana CLI.
 
@@ -111,6 +113,27 @@ pub fn build_withdraw_instruction(
             AccountMeta::new_readonly(withdrawer, true),
         ],
         data,
+    }
+}
+
+/// `VoteInstruction::UpdateValidatorIdentity`:
+/// [vote w, new identity read-only signer, withdrawer read-only signer].
+///
+/// The new identity is an inner signer that is not the vault, so the proposal
+/// can only be executed with that key supplied as an extra signer.
+pub fn build_update_validator_identity_instruction(
+    vote: Pubkey,
+    new_identity: Pubkey,
+    withdrawer: Pubkey,
+) -> Instruction {
+    Instruction {
+        program_id: VOTE_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(vote, false),
+            AccountMeta::new_readonly(new_identity, true),
+            AccountMeta::new_readonly(withdrawer, true),
+        ],
+        data: IX_UPDATE_VALIDATOR_IDENTITY.to_le_bytes().to_vec(),
     }
 }
 
@@ -324,6 +347,34 @@ pub fn is_external_collector(
     collector != vote && !vaults.contains_key(collector)
 }
 
+/// Refuse a new validator identity that cannot or need not be set: the
+/// current identity (a no-op), the vote account itself, or one of the
+/// multisig's vaults (a vault is a PDA and cannot run a validator).
+pub fn check_new_identity(
+    snapshot: &VoteAccountSnapshot,
+    new_identity: &Pubkey,
+    vaults: &HashMap<Pubkey, u8>,
+) -> Result<(), MsigError> {
+    if *new_identity == snapshot.state.node_pubkey {
+        return Err(MsigError::Usage(format!(
+            "{new_identity} is already the validator identity of vote account {}",
+            snapshot.address
+        )));
+    }
+    if *new_identity == snapshot.address {
+        return Err(MsigError::Usage(
+            "the new validator identity cannot be the vote account itself".into(),
+        ));
+    }
+    if let Some(index) = vaults.get(new_identity) {
+        return Err(MsigError::Usage(format!(
+            "the new validator identity {new_identity} is vault {index} of this multisig. A vault \
+             is a PDA and cannot run a validator; pass the identity keypair's public key."
+        )));
+    }
+    Ok(())
+}
+
 /// SIMD-0232 collector rules: the vote account itself, or an existing
 /// system-owned account holding at least its rent-exempt minimum.
 pub fn validate_collector(
@@ -437,6 +488,9 @@ pub enum VoteOperation {
     SetCollector {
         kind: CollectorKind,
         collector: Pubkey,
+    },
+    SetIdentity {
+        new_identity: Pubkey,
     },
 }
 
@@ -560,6 +614,18 @@ fn prepare_operation(
                 external,
             )
         }
+        VoteOperation::SetIdentity { new_identity } => {
+            let vaults = vault_addresses(&req.multisig, &config.program_id);
+            check_new_identity(&snapshot, &new_identity, &vaults)?;
+            (
+                build_update_validator_identity_instruction(vote, new_identity, *vault),
+                format!(
+                    "Set validator identity of vote account {vote} to {new_identity} \
+                     (the new identity must co-sign the execution)"
+                ),
+                None,
+            )
+        }
     };
     Ok(prepared)
 }
@@ -595,7 +661,7 @@ pub fn create_vote_account_proposal(
         req.allow_simulation_failure,
     )?;
 
-    create_vault_transaction_proposal(
+    let result = create_vault_transaction_proposal(
         rpc,
         signer,
         &req.multisig,
@@ -607,6 +673,27 @@ pub fn create_vote_account_proposal(
         req.dry_run,
         req.skip_confirm,
         req.quiet,
+    )?;
+
+    if let VoteOperation::SetIdentity { new_identity } = req.operation {
+        if result.signature.is_some() && !req.quiet {
+            println!(
+                "{}",
+                set_identity_next_step(result.transaction_index, &new_identity)
+            );
+        }
+    }
+    Ok(result)
+}
+
+/// What to run once a set-identity proposal is approved: the new identity has
+/// to sign the execute transaction.
+pub fn set_identity_next_step(index: u64, new_identity: &Pubkey) -> String {
+    format!(
+        "After approval, execute with the new identity as extra signer ({new_identity}):\n  \
+         msig proposal execute {index} --extra-signer <NEW_IDENTITY_KEYPAIR>\n\
+         The identity keypair file must be on the executing machine; offline execution \
+         and Ledger are not supported for this proposal."
     )
 }
 
@@ -917,6 +1004,30 @@ mod tests {
                 (recipient(), true, false),
                 (withdrawer(), false, true),
             ]
+        );
+    }
+
+    #[test]
+    fn update_validator_identity_matches_cli_dump() {
+        let ix = build_update_validator_identity_instruction(vote(), new_authority(), withdrawer());
+        assert_eq!(ix.program_id, VOTE_PROGRAM_ID);
+        assert_eq!(ix.data, hex("04000000"));
+        assert_eq!(
+            metas(&ix),
+            vec![
+                (vote(), true, false),
+                (new_authority(), false, true),
+                (withdrawer(), false, true),
+            ]
+        );
+        let decoded = decode_vote_instruction(&ix.data, &keys(&ix), None, false);
+        assert_eq!(
+            decoded.text,
+            format!(
+                "Vote UpdateValidatorIdentity on {}: new={}",
+                vote(),
+                new_authority()
+            )
         );
     }
 
@@ -1316,6 +1427,123 @@ mod tests {
             assert_eq!(decoded.text, UNRECOGNISED, "{data:?}");
             assert_eq!(decoded.warnings.len(), 1);
         }
+    }
+
+    /// Serves one vote account; everything else is absent.
+    struct VoteAccountRpc {
+        vote: Pubkey,
+        account: AccountData,
+    }
+
+    impl RpcProvider for VoteAccountRpc {
+        fn get_account_info(&self, pubkey: &str) -> Result<Option<AccountData>, MsigError> {
+            Ok((pubkey == self.vote.to_string()).then(|| self.account.clone()))
+        }
+        fn get_multiple_accounts(
+            &self,
+            pubkeys: &[&str],
+        ) -> Result<Vec<Option<AccountData>>, MsigError> {
+            pubkeys.iter().map(|pk| self.get_account_info(pk)).collect()
+        }
+        fn get_latest_blockhash(&self) -> Result<(String, u64), MsigError> {
+            Err(MsigError::Transaction(
+                "unexpected blockhash request".into(),
+            ))
+        }
+        fn get_minimum_balance_for_rent_exemption(&self, _: usize) -> Result<u64, MsigError> {
+            Err(MsigError::Transaction("unexpected rent request".into()))
+        }
+        fn send_transaction(&self, _: &str) -> Result<String, MsigError> {
+            Err(MsigError::Transaction("unexpected send".into()))
+        }
+        fn simulate_transaction(
+            &self,
+            _: &str,
+        ) -> Result<crate::infra::rpc::types::SimulationResult, MsigError> {
+            Err(MsigError::Transaction("unexpected simulation".into()))
+        }
+        fn get_signature_statuses(
+            &self,
+            _: &[&str],
+        ) -> Result<Vec<Option<crate::infra::rpc::types::TxStatus>>, MsigError> {
+            Err(MsigError::Transaction("unexpected status request".into()))
+        }
+    }
+
+    fn identity_request(
+        multisig: Pubkey,
+        vault_index: u8,
+        new_identity: Pubkey,
+    ) -> VoteProposalRequest<'static> {
+        VoteProposalRequest {
+            multisig,
+            vault_index,
+            vote_account: pk("HUtqwyyi7JHXMwv3GbKZMgURZBRB8cRgfpwgsrQuamuc"),
+            operation: VoteOperation::SetIdentity { new_identity },
+            allow_external_authority: false,
+            allow_simulation_failure: false,
+            memo: None,
+            dry_run: true,
+            skip_confirm: true,
+            quiet: true,
+        }
+    }
+
+    #[test]
+    fn set_identity_preflight() {
+        let vote_pk = pk("HUtqwyyi7JHXMwv3GbKZMgURZBRB8cRgfpwgsrQuamuc");
+        // The fixture's authorized withdrawer stands in for the vault.
+        let vault = pk("BjvitWuqmZCcpmVKnoeWWvtCEPevfL4dqwqEaZ4RsKQC");
+        let current_identity = pk("F2QJLZ9tBKT1vAs8pRs6WupW5As9uuzpknk3Au7dpZ9b");
+        let multisig = Pubkey::new_from_array([7u8; 32]);
+        let config = Config::default();
+        let rpc = VoteAccountRpc {
+            vote: vote_pk,
+            account: account(VOTE_PROGRAM_ID, 42, hex(V4_ACCOUNT_PREFIX_HEX)),
+        };
+
+        let req = identity_request(multisig, 0, new_authority());
+        let (ix, description, external) =
+            prepare_operation(&rpc, &config, &req, &vault).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(
+            ix,
+            build_update_validator_identity_instruction(vote_pk, new_authority(), vault)
+        );
+        assert!(description.contains(&new_authority().to_string()));
+        assert!(description.contains("co-sign"));
+        assert_eq!(external, None);
+
+        // The vault must be the withdrawer.
+        let other_vault = Pubkey::new_from_array([9u8; 32]);
+        assert!(matches!(
+            prepare_operation(&rpc, &config, &req, &other_vault),
+            Err(MsigError::Transaction(_))
+        ));
+
+        // Current identity, the vote account itself, and a vault are refused.
+        let vault3 = pda::vault_pda(&multisig, 3, &config.program_id).0;
+        for bad in [current_identity, vote_pk, vault3] {
+            let req = identity_request(multisig, 0, bad);
+            match prepare_operation(&rpc, &config, &req, &vault) {
+                Err(MsigError::Usage(_)) => {}
+                other => panic!("{bad} should be refused, got {other:?}"),
+            }
+        }
+
+        // Wrong owner.
+        let rpc = VoteAccountRpc {
+            vote: vote_pk,
+            account: account(SYSTEM_PROGRAM, 42, hex(V4_ACCOUNT_PREFIX_HEX)),
+        };
+        assert!(prepare_operation(&rpc, &config, &req, &vault).is_err());
+    }
+
+    #[test]
+    fn set_identity_next_step_is_online_execute() {
+        let text = set_identity_next_step(12, &new_authority());
+        assert!(text.contains("msig proposal execute 12 --extra-signer <NEW_IDENTITY_KEYPAIR>"));
+        assert!(text.contains(&new_authority().to_string()));
+        assert!(!text.contains("tx export"));
     }
 
     #[test]

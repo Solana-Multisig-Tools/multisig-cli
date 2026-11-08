@@ -315,6 +315,7 @@ fn run_proposal_action(
             signer.as_ref(),
             &multisig,
             index,
+            Vec::new(),
             &config,
             dry_run,
             true,
